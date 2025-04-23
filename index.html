@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#007BFF" />
+  <link rel="manifest" href="manifest.json" />
+  <title>Status Máquinas - 2º Turno</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 1rem;
+      background-color: #f0f4f8;
+    }
+    h1 {
+      font-size: 1.5rem;
+      text-align: center;
+      margin-bottom: 1rem;
+      color: #333;
+    }
+    form {
+      display: grid;
+      gap: 0.5rem;
+    }
+    label {
+      font-weight: bold;
+    }
+    input, select, textarea, button {
+      padding: 0.5rem;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 1rem;
+      width: 100%;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 2rem;
+    }
+    th, td {
+      border: 1px solid #999;
+      padding: 0.3rem;
+      text-align: center;
+      font-size: 0.85rem;
+    }
+    th {
+      background-color: #007BFF;
+      color: white;
+    }
+    .btn {
+      background-color: #28a745;
+      color: white;
+      border: none;
+      cursor: pointer;
+      margin-top: 1rem;
+    }
+    .btn:hover {
+      background-color: #218838;
+    }
+    .preview {
+      margin-top: 1rem;
+      text-align: center;
+    }
+    @media(max-width: 600px) {
+      table, th, td {
+        font-size: 0.7rem;
+      }
+      input, select, textarea {
+        font-size: 0.9rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>STATUS MÁQUINAS - 2º TURNO</h1>
+  <form id="formulario">
+    <label for="data">Data</label>
+    <input type="date" id="data" required />
+
+    <label for="maquina">Máquina</label>
+    <input type="text" id="maquina" required />
+
+    <label for="molde">Molde</label>
+    <input type="text" id="molde" required />
+
+    <label for="cicloPadrao">Ciclo Padrão</label>
+    <input type="text" id="cicloPadrao" required />
+
+    <label for="cicloAtual">Ciclo Atual</label>
+    <input type="text" id="cicloAtual" required />
+
+    <label for="obs">Observação</label>
+    <textarea id="obs" rows="2"></textarea>
+
+    <button type="submit" class="btn">Adicionar à Tabela</button>
+  </form>
+
+  <table id="tabela">
+    <thead>
+      <tr>
+        <th colspan="6">STATUS MÁQUINAS - 2º TURNO</th>
+      </tr>
+      <tr>
+        <th>Data</th>
+        <th>Máquina</th>
+        <th>Molde</th>
+        <th>Ciclo Padrão</th>
+        <th>Ciclo Atual</th>
+        <th>Observação</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <div class="preview">
+    <button onclick="gerarImagem()" class="btn">Gerar Imagem da Tabela</button>
+    <a id="linkDownload" style="display:none; margin-top:1rem;" download="status-maquinas.png">Baixar Imagem</a>
+    <div id="imagemTabela"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script>
+    const form = document.getElementById('formulario');
+    const tabela = document.querySelector('#tabela tbody');
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const data = document.getElementById('data').value;
+      const maquina = document.getElementById('maquina').value;
+      const molde = document.getElementById('molde').value;
+      const cicloPadrao = document.getElementById('cicloPadrao').value;
+      const cicloAtual = document.getElementById('cicloAtual').value;
+      const obs = document.getElementById('obs').value;
+
+      const linha = document.createElement('tr');
+      linha.innerHTML = `<td>${data}</td><td>${maquina}</td><td>${molde}</td><td>${cicloPadrao}</td><td>${cicloAtual}</td><td>${obs}</td>`;
+      tabela.appendChild(linha);
+
+      form.reset();
+    });
+
+    function gerarImagem() {
+      html2canvas(document.querySelector("#tabela")).then(canvas => {
+        document.getElementById("imagemTabela").innerHTML = '';
+        document.getElementById("imagemTabela").appendChild(canvas);
+        const link = document.getElementById("linkDownload");
+        link.href = canvas.toDataURL();
+        link.style.display = 'inline-block';
+      });
+    }
+  </script>
+</body>
+</html>
