@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#3b82f6" />
-  <title>CapySystem - Status Máquinas</title>
+  <title>Status Máquinas com Supabase</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -16,31 +16,35 @@
     #sidebar { transition: transform 0.3s ease-in-out; }
     #sidebarOverlay { transition: opacity 0.3s ease-in-out; }
     /* Estilos para inputs e botões */
-    .filter-input, .action-button { padding: 0.6rem 0.75rem; border: 1px solid #d1d5db; border-radius: 0.375rem; box-sizing: border-box; font-size: 0.875rem; width: 100%; }
-    .action-button { background-color: #3b82f6; color: white; font-weight: bold; cursor: pointer; transition: background-color 0.2s; border: none; margin-right: 0.5rem; /* Adiciona espaço entre botões */ }
-     .action-button:last-child { margin-right: 0; } /* Remove margem do último botão */
+    .form-input, .action-button { /* Renomeado de filter-input para form-input */
+        padding: 0.6rem 0.75rem; border: 1px solid #d1d5db; border-radius: 0.375rem;
+        box-sizing: border-box; font-size: 0.875rem; width: 100%;
+        background-color: white; /* Garante fundo branco */
+    }
+    .action-button { background-color: #3b82f6; color: white; font-weight: bold; cursor: pointer; transition: background-color 0.2s; border: none; margin-right: 0.5rem; }
+    .action-button:last-child { margin-right: 0; }
     .action-button:hover { background-color: #2563eb; }
     .btn-add { background-color: #28a745; color: white; }
     .btn-add:hover { background-color: #218838; }
+    .btn-update { background-color: #f59e0b; color: white; } /* Botão Salvar Alterações (Laranja) */
+    .btn-update:hover { background-color: #d97706; }
+    .btn-cancel-edit { background-color: #6b7280; color: white; } /* Botão Cancelar Edição (Cinza) */
+    .btn-cancel-edit:hover { background-color: #4b5563; }
     .btn-generate { background-color: #10b981; color: white; }
     .btn-generate:hover { background-color: #059669; }
-     /* Estilo para o botão Remover */
-     .remove-button {
-         background: none;
-         border: none;
-         color: #ef4444; /* text-red-500 */
-         cursor: pointer;
-         padding: 0.25rem;
-         font-weight: normal;
-         text-decoration: underline;
-         display: inline;
-     }
-     .remove-button:hover {
-         color: #dc2626; /* hover:text-red-700 */
-     }
+    .btn-load { background-color: #6366f1; } /* Botão Carregar (Roxo) */
+    .btn-load:hover { background-color: #4f46e5; }
+    .remove-button { background: none; border: none; color: #ef4444; cursor: pointer; padding: 0.25rem; font-weight: normal; text-decoration: underline; display: inline; }
+    .remove-button:hover { color: #dc2626; }
+    .edit-button { /* Estilo similar ao remover, mas azul */
+        background: none; border: none; color: #3b82f6; /* Azul */
+        cursor: pointer; padding: 0.25rem; font-weight: normal;
+        text-decoration: underline; display: inline; margin-right: 0.5rem; /* Espaço antes do remover */
+    }
+    .edit-button:hover { color: #2563eb; }
 
     /* Estilos básicos para a tabela */
-    #tabela { border-collapse: separate; border-spacing: 0; border: 1px solid #e5e7eb; border-radius: 0.5rem; overflow: hidden; width: 100%; margin-top: 2rem; background-color: white; }
+    #tabela { border-collapse: separate; border-spacing: 0; border: 1px solid #e5e7eb; border-radius: 0.5rem; overflow: hidden; width: 100%; margin-top: 1rem; /* Reduzido margin-top */ background-color: white; }
     #tabela th, #tabela td { border-bottom: 1px solid #e5e7eb; padding: 0.75rem 1rem; text-align: center; vertical-align: middle; }
     #tabela th { background-color: #f9fafb; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: #6b7280; white-space: nowrap; border-top: none; border-bottom-width: 2px; }
     #tabela tbody tr:last-child td { border-bottom: none; }
@@ -65,14 +69,13 @@
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
     /* Estilos de Impressão */
-    @media print {
+    @media print { /* ... estilos de impressão mantidos e ajustados para nova coluna ... */
          body { padding: 0; margin: 0; background-color: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-         /* Esconde header, formulário, preview, botão remover */
-         header, form, .preview, .remove-button, #tabela th:last-child, #tabela td:last-child { display: none !important; }
+         header, form, .preview, .remove-button, .edit-button, #filterSection, #tabela th:last-child, #tabela td:last-child { display: none !important; } /* Esconde filtro e botões de ação */
          .main-container { box-shadow: none; border: none; padding: 1cm; margin: 0; max-width: 100%; border-radius: 0; }
          h1 { display: block; margin-bottom: 1rem; font-size: 1.5rem; text-align: center; }
-         #tabela { border-radius: 0; border: none; font-size: 10pt; margin-top: 1rem;}
-         #tabela th, #tabela td { border: 1px solid #ddd; padding: 0.4rem 0.6rem; font-size: 9pt;}
+         #tabela { border-radius: 0; border: none; font-size: 9pt; margin-top: 1rem;} /* Ajustado para font menor */
+         #tabela th, #tabela td { border: 1px solid #ddd; padding: 0.3rem 0.5rem; font-size: 8pt;} /* Ajustado para font menor */
          #tabela th { background-color: #eee !important; color: #333 !important;}
          #tabela tbody tr { page-break-inside: avoid; }
      }
@@ -84,11 +87,12 @@
         <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
                 <div class="flex items-center">
-                    <span class="font-bold text-xl text-gray-800">CapySystem</span>
+                    <span class="font-bold text-xl text-gray-800">Meu Sistema</span>
                     <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
                         <a href="index.html" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Dashboard</a>
                         <a href="Absenteismo.html" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Absenteísmo</a>
                         <a href="status.html" class="border-blue-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium" aria-current="page">Status Máquinas</a>
+<a href="capydoc2.html" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">CapyDoc</a>
                     </div>
                 </div>
                 <div class="flex items-center sm:hidden">
@@ -109,6 +113,7 @@
                  <a href="index.html" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900">Dashboard</a>
                  <a href="Absenteismo.html" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900">Absenteísmo</a>
                  <a href="status.html" class="block px-3 py-2 rounded-md text-base font-medium text-blue-700 bg-blue-50" aria-current="page">Status Máquinas</a>
+<a href="capydoc2.html" cclass="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900">CapyDoc</a>
             </div>
         </div>
         <div id="sidebarOverlay" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden"></div>
@@ -122,50 +127,62 @@
         <h1 class="text-2xl font-bold mb-6 text-center text-gray-800">STATUS MÁQUINAS - 2º TURNO</h1>
 
         <form id="formulario" class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 p-6 bg-gray-50 rounded-lg border border-gray-200">
+             <input type="hidden" id="editingRecordId">
             <div>
                 <label for="data" class="block text-sm font-medium text-gray-700 mb-1">Data</label>
-                <input type="date" id="data" required class="filter-input shadow-sm focus:ring-blue-500 focus:border-blue-500"/>
+                <input type="date" id="data" required class="form-input shadow-sm focus:ring-blue-500 focus:border-blue-500"/>
             </div>
             <div>
                 <label for="maquina" class="block text-sm font-medium text-gray-700 mb-1">Máquina</label>
-                <input type="text" id="maquina" required class="filter-input shadow-sm focus:ring-blue-500 focus:border-blue-500"/>
+                <input type="text" id="maquina" required class="form-input shadow-sm focus:ring-blue-500 focus:border-blue-500"/>
             </div>
             <div>
                 <label for="molde" class="block text-sm font-medium text-gray-700 mb-1">Molde</label>
-                <input type="text" id="molde" required class="filter-input shadow-sm focus:ring-blue-500 focus:border-blue-500"/>
+                <input type="text" id="molde" required class="form-input shadow-sm focus:ring-blue-500 focus:border-blue-500"/>
             </div>
             <div>
                 <label for="cicloPadrao" class="block text-sm font-medium text-gray-700 mb-1">Ciclo Padrão</label>
-                <input type="text" id="cicloPadrao" required class="filter-input shadow-sm focus:ring-blue-500 focus:border-blue-500"/>
+                <input type="text" id="cicloPadrao" required class="form-input shadow-sm focus:ring-blue-500 focus:border-blue-500"/>
             </div>
             <div>
                 <label for="cicloAtual" class="block text-sm font-medium text-gray-700 mb-1">Ciclo Atual</label>
-                <input type="text" id="cicloAtual" required class="filter-input shadow-sm focus:ring-blue-500 focus:border-blue-500"/>
+                <input type="text" id="cicloAtual" required class="form-input shadow-sm focus:ring-blue-500 focus:border-blue-500"/>
             </div>
             <div class="sm:col-span-2">
                 <label for="obs" class="block text-sm font-medium text-gray-700 mb-1">Observação</label>
-                <textarea id="obs" rows="2" class="filter-input shadow-sm focus:ring-blue-500 focus:border-blue-500"></textarea>
+                <textarea id="obs" rows="2" class="form-input shadow-sm focus:ring-blue-500 focus:border-blue-500"></textarea>
             </div>
-            <div class="sm:col-span-2 flex justify-center">
-                 <button type="submit" class="action-button btn-add w-full sm:w-auto">Salvar Status e Adicionar</button>
+            <div id="formButtons" class="sm:col-span-2 flex flex-col sm:flex-row justify-center gap-3">
+                 <button type="submit" id="submitButton" class="action-button btn-add w-full sm:w-auto">Salvar Novo Status</button>
+                 <button type="button" id="cancelEditButton" onclick="cancelEdit()" class="action-button btn-cancel-edit w-full sm:w-auto hidden">Cancelar Edição</button>
             </div>
         </form>
+
+        <div id="filterSection" class="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200 flex flex-col sm:flex-row items-center justify-center gap-4">
+             <label for="filterDate" class="text-sm font-medium text-gray-700 whitespace-nowrap">Carregar Registros da Data:</label>
+             <input type="date" id="filterDate" class="form-input w-full sm:w-auto shadow-sm focus:ring-blue-500 focus:border-blue-500 border-gray-300 rounded-md">
+             <button onclick="loadMachineStatusByDate()" class="action-button btn-load w-full sm:w-auto">Carregar Dados</button>
+         </div>
+
 
         <div class="overflow-x-auto shadow-md rounded-lg border border-gray-200">
             <table id="tabela" class="min-w-full bg-white">
                 <thead>
-                    <tr><th colspan="7">STATUS MÁQUINAS - 2º TURNO (Registros Adicionados na Sessão)</th></tr> <tr>
+                    <tr>
                         <th>Data</th><th>Máquina</th><th>Molde</th>
                         <th>Ciclo Padrão</th><th>Ciclo Atual</th><th>Observação</th>
-                        <th>Ações</th> </tr>
+                        <th>Ações</th>
+                    </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-200">
-                    </tbody>
+                <tbody id="machineStatusTableBody" class="divide-y divide-gray-200">
+                    <tr><td colspan="7" class="text-center py-4 text-gray-500">Selecione uma data e clique em "Carregar Dados".</td></tr>
+                </tbody>
             </table>
         </div>
 
         <div class="preview mt-6 text-center">
-            <button onclick="gerarImagem()" class="action-button btn-generate">Gerar Imagem da Tabela</button>
+            <h3 class="text-lg font-medium text-gray-700 mb-2">Gerar Imagem da Tabela Atual</h3>
+            <button onclick="gerarImagem()" class="action-button btn-generate">Gerar Imagem</button>
             <a id="linkDownload" download="status-maquinas.png">Baixar Imagem</a>
             <div id="imagemTabela" class="mt-4 flex justify-center"></div>
         </div>
@@ -195,6 +212,19 @@
         // --- Referências aos Elementos do DOM ---
         const form = document.getElementById('formulario');
         const loadingSpinner = document.getElementById('loadingSpinner');
+        const filterDateInput = document.getElementById('filterDate');
+        const machineStatusTableBody = document.getElementById('machineStatusTableBody');
+        const editingRecordIdInput = document.getElementById('editingRecordId');
+        const submitButton = document.getElementById('submitButton');
+        const cancelEditButton = document.getElementById('cancelEditButton');
+        // Inputs do formulário
+        const dataInput = document.getElementById('data');
+        const maquinaInput = document.getElementById('maquina');
+        const moldeInput = document.getElementById('molde');
+        const cicloPadraoInput = document.getElementById('cicloPadrao');
+        const cicloAtualInput = document.getElementById('cicloAtual');
+        const obsInput = document.getElementById('obs');
+
 
         // --- Lógica do Status Máquinas com Supabase ---
 
@@ -206,147 +236,286 @@
              return div.innerHTML;
          }
 
-        /** Adiciona os dados do formulário ao Supabase E à tabela HTML */
-        async function saveAndAddMachineStatus(event) {
+         /** Carrega dados do Supabase para a data selecionada e preenche a tabela */
+         async function loadMachineStatusByDate() {
+            const selectedDate = filterDateInput.value;
+            if (!selectedDate) {
+                showCustomAlert("Por favor, selecione uma data para carregar.", "error");
+                return;
+            }
+            showLoading(true);
+            machineStatusTableBody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Carregando dados...</td></tr>'; // Limpa e mostra carregando
+
+            try {
+                 console.log(`Buscando dados para a data: ${selectedDate}`);
+                 const { data, error } = await supabaseClient
+                    .from('status_maquinas')
+                    .select('*')
+                    .eq('data', selectedDate)
+                    .order('nome_maquina', { ascending: true }); // Ordena por máquina
+
+                 if (error) throw error;
+
+                 machineStatusTableBody.innerHTML = ''; // Limpa a tabela antes de adicionar
+
+                 if (data && data.length > 0) {
+                    console.log(`Dados encontrados: ${data.length} registros.`);
+                    data.forEach(record => addMachineRowToTable(record)); // Adiciona cada registro à tabela
+                 } else {
+                    console.log("Nenhum dado encontrado para esta data.");
+                    machineStatusTableBody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Nenhum registro encontrado para esta data.</td></tr>';
+                 }
+
+            } catch (error) {
+                console.error("Erro ao carregar status das máquinas:", error);
+                showCustomAlert(`Erro ao carregar dados: ${error.message}`, "error");
+                machineStatusTableBody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-red-500">Erro ao carregar dados.</td></tr>';
+            } finally {
+                showLoading(false);
+            }
+         }
+
+         /** Adiciona uma linha de registro à tabela HTML */
+         function addMachineRowToTable(record) {
+             if (!machineStatusTableBody) {
+                 console.error("Erro fatal: tbody não encontrado.");
+                 return;
+             }
+             const linha = document.createElement('tr');
+             linha.setAttribute('data-id', record.id); // Armazena o ID
+             linha.innerHTML = `
+                 <td class="px-4 py-2 text-sm text-gray-700">${escapeHTML(record.data)}</td>
+                 <td class="px-4 py-2 text-sm text-gray-700">${escapeHTML(record.nome_maquina)}</td>
+                 <td class="px-4 py-2 text-sm text-gray-700">${escapeHTML(record.molde)}</td>
+                 <td class="px-4 py-2 text-sm text-gray-700">${escapeHTML(record.ciclo_padrao)}</td>
+                 <td class="px-4 py-2 text-sm text-gray-700">${escapeHTML(record.ciclo_atual)}</td>
+                 <td class="px-4 py-2 text-sm text-gray-700 break-words max-w-xs">${escapeHTML(record.observacoes || '')}</td>
+                 <td class="px-4 py-2 text-sm text-center whitespace-nowrap">
+                     <button onclick="editMachineStatus(this, '${record.id}')" class="edit-button">Editar</button>
+                     <button onclick="removeMachineStatus(this, '${record.id}')" class="remove-button">Remover</button>
+                 </td>
+             `;
+             machineStatusTableBody.appendChild(linha);
+         }
+
+
+        /** Prepara o formulário para edição de um registro existente */
+        function editMachineStatus(buttonElement, recordId) {
+            console.log(`Iniciando edição para ID: ${recordId}`);
+            const row = buttonElement.closest('tr');
+            if (!row) {
+                console.error("Não foi possível encontrar a linha para editar.");
+                return;
+            }
+
+            // Pega os dados das células da linha
+            const cells = row.cells;
+            dataInput.value = cells[0].textContent;
+            maquinaInput.value = cells[1].textContent;
+            moldeInput.value = cells[2].textContent;
+            cicloPadraoInput.value = cells[3].textContent;
+            cicloAtualInput.value = cells[4].textContent;
+            obsInput.value = cells[5].textContent;
+
+            // Armazena o ID no campo oculto
+            editingRecordIdInput.value = recordId;
+
+            // Muda o botão principal para "Salvar Alterações"
+            submitButton.textContent = 'Salvar Alterações';
+            submitButton.classList.remove('btn-add');
+            submitButton.classList.add('btn-update');
+
+            // Mostra o botão "Cancelar Edição"
+            cancelEditButton.classList.remove('hidden');
+
+            // Rola a página para o formulário (opcional, melhora UX)
+            form.scrollIntoView({ behavior: 'smooth' });
+             console.log("Formulário preenchido para edição.");
+        }
+
+        /** Cancela o modo de edição, limpando o formulário e restaurando o botão */
+        function cancelEdit() {
+            form.reset(); // Limpa os campos
+            editingRecordIdInput.value = ''; // Limpa o ID oculto
+
+            // Restaura o botão principal
+            submitButton.textContent = 'Salvar Novo Status';
+            submitButton.classList.remove('btn-update');
+            submitButton.classList.add('btn-add');
+
+            // Esconde o botão "Cancelar Edição"
+            cancelEditButton.classList.add('hidden');
+
+            // Define a data padrão novamente
+            const today = new Date().toISOString().split('T')[0];
+            if(dataInput) dataInput.value = today;
+
+            console.log("Edição cancelada.");
+        }
+
+        /** Salva um novo registro ou atualiza um existente */
+        async function handleFormSubmit(event) {
             event.preventDefault();
+            const editingId = editingRecordIdInput.value;
+
+            if (editingId) {
+                // Se tem ID, estamos atualizando
+                await updateMachineStatus(editingId);
+            } else {
+                // Senão, estamos inserindo um novo
+                await insertNewMachineStatus();
+            }
+        }
+
+        /** Insere um novo status no Supabase e atualiza a tabela */
+        async function insertNewMachineStatus() {
+            console.log("Iniciando insertNewMachineStatus...");
             showLoading(true);
 
-            const data = document.getElementById('data').value;
-            const maquina = document.getElementById('maquina').value;
-            const molde = document.getElementById('molde').value;
-            const cicloPadrao = document.getElementById('cicloPadrao').value;
-            const cicloAtual = document.getElementById('cicloAtual').value;
-            const obs = document.getElementById('obs').value;
+            const data = dataInput.value;
+            const maquina = maquinaInput.value;
+            const molde = moldeInput.value;
+            const cicloPadrao = cicloPadraoInput.value;
+            const cicloAtual = cicloAtualInput.value;
+            const obs = obsInput.value;
 
             if (!data || !maquina || !molde || !cicloPadrao || !cicloAtual) {
                  showCustomAlert('Por favor, preencha todos os campos obrigatórios.', 'error');
-                 showLoading(false);
-                 return;
+                 showLoading(false); return;
             }
-
-            const newStatusRecord = { data, nome_maquina: maquina, molde, ciclo_padrao: cicloPadrao, ciclo_atual: cicloAtual, observacoes: obs || null };
+            const newRecord = { data, nome_maquina: maquina, molde, ciclo_padrao: cicloPadrao, ciclo_atual: cicloAtual, observacoes: obs || null };
 
             try {
-                // Insere no Supabase e pede o retorno do registro inserido (com ID)
-                const { data: insertedData, error: insertError } = await supabaseClient
-                    .from('status_maquinas')
-                    .insert([newStatusRecord])
-                    .select() // Pede para retornar os dados inseridos
-                    .single(); // Espera um único registro
+                const { data: insertedData, error } = await supabaseClient
+                    .from('status_maquinas').insert([newRecord]).select().single();
+                if (error) throw error;
+                if (!insertedData) throw new Error("Falha ao obter dados do registro inserido.");
 
-                if (insertError) throw insertError;
-
-                if (!insertedData || !insertedData.id) {
-                     console.error("Supabase não retornou o ID do registro inserido.");
-                     throw new Error("Falha ao obter ID do registro salvo.");
-                }
-
-                showCustomAlert('Status salvo com sucesso!', 'success');
-
-                // Adiciona a linha na tabela HTML, incluindo o ID e o botão Remover
-                const tabelaBody = document.querySelector('#tabela tbody');
-                if (tabelaBody) {
-                    const linha = document.createElement('tr');
-                    // Armazena o ID do Supabase no atributo data-id da linha
-                    linha.setAttribute('data-id', insertedData.id);
-                    linha.innerHTML = `
-                        <td class="px-4 py-2 text-sm text-gray-700">${escapeHTML(data)}</td>
-                        <td class="px-4 py-2 text-sm text-gray-700">${escapeHTML(maquina)}</td>
-                        <td class="px-4 py-2 text-sm text-gray-700">${escapeHTML(molde)}</td>
-                        <td class="px-4 py-2 text-sm text-gray-700">${escapeHTML(cicloPadrao)}</td>
-                        <td class="px-4 py-2 text-sm text-gray-700">${escapeHTML(cicloAtual)}</td>
-                        <td class="px-4 py-2 text-sm text-gray-700 break-words max-w-xs">${escapeHTML(obs)}</td>
-                        <td class="px-4 py-2 text-sm text-center">
-                            <button onclick="removeMachineStatus(this, '${insertedData.id}')" class="remove-button">Remover</button>
-                        </td>
-                    `;
-                    tabelaBody.appendChild(linha);
+                showCustomAlert('Novo status salvo com sucesso!', 'success');
+                // Adiciona a nova linha APENAS se a data inserida for a mesma data do filtro atual
+                if (insertedData.data === filterDateInput.value) {
+                    addMachineRowToTable(insertedData);
                 } else {
-                    console.error("Erro: tbody da tabela não encontrado.");
-                    showCustomAlert("Erro interno ao adicionar linha visual.", "error");
+                     showCustomAlert('Registro salvo, mas pertence a outra data. Recarregue para ver.', 'success'); // Ou apenas 'success'
                 }
-
                 form.reset();
-                // Define a data padrão para hoje novamente
-                const today = new Date().toISOString().split('T')[0];
-                const dataInput = document.getElementById('data');
-                if(dataInput) dataInput.value = today;
+                 // Define a data padrão novamente
+                 const today = new Date().toISOString().split('T')[0];
+                 if(dataInput) dataInput.value = today;
 
             } catch (error) {
-                console.error('Erro ao salvar/adicionar status:', error);
+                console.error('Erro ao inserir novo status:', error);
                 showCustomAlert(`Erro ao salvar: ${error.message}`, 'error');
             } finally {
                 showLoading(false);
             }
         }
 
+        /** Atualiza um status existente no Supabase e na tabela */
+        async function updateMachineStatus(recordId) {
+             console.log(`Iniciando updateMachineStatus para ID: ${recordId}`);
+             showLoading(true);
+
+             const updatedData = {
+                 data: dataInput.value,
+                 nome_maquina: maquinaInput.value,
+                 molde: moldeInput.value,
+                 ciclo_padrao: cicloPadraoInput.value,
+                 ciclo_atual: cicloAtualInput.value,
+                 observacoes: obsInput.value || null
+             };
+
+             // Validação
+             if (!updatedData.data || !updatedData.nome_maquina || !updatedData.molde || !updatedData.ciclo_padrao || !updatedData.ciclo_atual) {
+                  showCustomAlert('Por favor, preencha todos os campos obrigatórios.', 'error');
+                  showLoading(false); return;
+             }
+
+             try {
+                 const { error } = await supabaseClient
+                    .from('status_maquinas')
+                    .update(updatedData)
+                    .eq('id', recordId);
+                 if (error) throw error;
+
+                 showCustomAlert('Registro atualizado com sucesso!', 'success');
+
+                 // Atualiza a linha na tabela visualmente
+                 const rowToUpdate = machineStatusTableBody.querySelector(`tr[data-id='${recordId}']`);
+                 if (rowToUpdate) {
+                    // Verifica se a data foi alterada e se deve permanecer na tabela atual
+                    if (updatedData.data !== filterDateInput.value) {
+                        rowToUpdate.remove(); // Remove se a data não corresponde mais ao filtro
+                        showCustomAlert('Registro atualizado e movido para outra data.', 'success');
+                    } else {
+                        // Atualiza as células da linha existente
+                        rowToUpdate.cells[0].textContent = escapeHTML(updatedData.data);
+                        rowToUpdate.cells[1].textContent = escapeHTML(updatedData.nome_maquina);
+                        rowToUpdate.cells[2].textContent = escapeHTML(updatedData.molde);
+                        rowToUpdate.cells[3].textContent = escapeHTML(updatedData.ciclo_padrao);
+                        rowToUpdate.cells[4].textContent = escapeHTML(updatedData.ciclo_atual);
+                        rowToUpdate.cells[5].textContent = escapeHTML(updatedData.observacoes || '');
+                    }
+                 } else {
+                     console.warn(`Linha com ID ${recordId} não encontrada na tabela para atualização visual.`);
+                     // Mesmo que não encontre a linha, o Supabase foi atualizado. Pode recarregar.
+                     loadMachineStatusByDate(); // Recarrega para garantir consistência
+                 }
+
+                 // Cancela o modo de edição
+                 cancelEdit();
+
+             } catch (error) {
+                 console.error('Erro ao atualizar status:', error);
+                 showCustomAlert(`Erro ao atualizar: ${error.message}`, 'error');
+             } finally {
+                 showLoading(false);
+             }
+        }
+
+
         /** Remove o status da máquina do Supabase e da tabela HTML */
         async function removeMachineStatus(buttonElement, recordId) {
-            if (!confirm('Tem certeza que deseja remover este registro de status?')) {
-                return; // Cancela se o usuário não confirmar
-            }
-
+            if (!confirm('Tem certeza que deseja remover este registro de status?')) return;
             showLoading(true);
-            console.log(`Tentando remover registro com ID: ${recordId}`);
-
             try {
-                // Remove do Supabase
-                const { error: deleteError } = await supabaseClient
-                    .from('status_maquinas')
-                    .delete()
-                    .match({ id: recordId }); // Condição para deletar
-
-                if (deleteError) {
-                    console.error("Erro ao remover do Supabase:", deleteError);
-                    throw deleteError; // Joga o erro para o catch
-                }
-
-                console.log("Remoção do Supabase bem-sucedida.");
+                const { error } = await supabaseClient.from('status_maquinas').delete().match({ id: recordId });
+                if (error) throw error;
                 showCustomAlert('Registro removido com sucesso!', 'success');
-
-                // Remove a linha da tabela HTML
-                const rowToRemove = buttonElement.closest('tr'); // Encontra a linha pai do botão
-                if (rowToRemove) {
-                    rowToRemove.remove();
-                    console.log("Linha removida da tabela HTML.");
-                } else {
-                     console.warn("Não foi possível encontrar a linha na tabela para remover visualmente.");
-                }
-
+                const rowToRemove = buttonElement.closest('tr');
+                if (rowToRemove) rowToRemove.remove();
+                 // Se a tabela ficar vazia, mostra mensagem
+                 if (machineStatusTableBody.rows.length === 0) {
+                     machineStatusTableBody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Nenhum registro encontrado para esta data.</td></tr>';
+                 }
             } catch (error) {
-                console.error('Erro geral ao remover status:', error);
+                console.error('Erro ao remover status:', error);
                 showCustomAlert(`Erro ao remover: ${error.message}`, 'error');
             } finally {
                 showLoading(false);
             }
         }
 
-
-        // Adiciona o listener ao formulário
+        // Adiciona o listener ao formulário para chamar a função de tratamento
         if (form) {
-            form.addEventListener('submit', saveAndAddMachineStatus);
+            form.addEventListener('submit', handleFormSubmit);
         } else {
              console.error("Erro: Formulário com id 'formulario' não encontrado.");
         }
 
 
-        /** Função para gerar imagem da tabela (mantida) */
+        /** Função para gerar imagem da tabela */
         function gerarImagem() {
             const tabelaElement = document.querySelector("#tabela");
             const linkDownload = document.getElementById("linkDownload");
             const imagemContainer = document.getElementById("imagemTabela");
+            if (!tabelaElement) { showCustomAlert("Erro: Tabela não encontrada.", "error"); return; }
 
-            if (!tabelaElement) {
-                showCustomAlert("Erro: Tabela não encontrada para gerar imagem.", "error");
-                return;
-            }
-
-            // Temporariamente esconde a coluna de ações antes de gerar a imagem
+            // Esconde a coluna de ações
             const actionsHeader = tabelaElement.querySelector("th:last-child");
             const actionsCells = tabelaElement.querySelectorAll("td:last-child");
             if (actionsHeader) actionsHeader.style.display = 'none';
             actionsCells.forEach(cell => cell.style.display = 'none');
-
 
             imagemContainer.innerHTML = '<p class="text-gray-500 text-sm">Gerando imagem...</p>';
             linkDownload.style.display = 'none';
@@ -356,74 +525,53 @@
                 imagemContainer.innerHTML = '';
                 canvas.classList.add('max-w-full', 'h-auto', 'rounded-md', 'shadow-md', 'border', 'border-gray-200');
                 imagemContainer.appendChild(canvas);
-                try {
-                    linkDownload.href = canvas.toDataURL('image/png');
-                    linkDownload.style.display = 'inline-block';
-                } catch (e) {
-                     console.error("Erro ao gerar Data URL:", e);
-                     imagemContainer.innerHTML = '<p class="text-red-500 text-sm">Erro ao gerar imagem para download.</p>';
-                }
+                try { linkDownload.href = canvas.toDataURL('image/png'); linkDownload.style.display = 'inline-block'; }
+                catch (e) { console.error("Erro Data URL:", e); imagemContainer.innerHTML = '<p class="text-red-500 text-sm">Erro ao gerar imagem.</p>'; }
             }).catch(error => {
-                console.error('Erro ao usar html2canvas:', error);
-                imagemContainer.innerHTML = '<p class="text-red-500 text-sm">Ocorreu um erro ao gerar a imagem.</p>';
+                console.error('Erro html2canvas:', error);
+                imagemContainer.innerHTML = '<p class="text-red-500 text-sm">Erro ao gerar imagem.</p>';
             }).finally(() => {
-                 // Mostra a coluna de ações novamente após gerar a imagem
+                 // Mostra a coluna de ações novamente
                  if (actionsHeader) actionsHeader.style.display = '';
                  actionsCells.forEach(cell => cell.style.display = '');
             });
         }
 
          // --- Funções Auxiliares ---
-         function showLoading(isLoading) {
-             if (loadingSpinner) {
-                loadingSpinner.style.display = isLoading ? 'block' : 'none';
-             }
-         }
-
+         function showLoading(isLoading) { if (loadingSpinner) { loadingSpinner.style.display = isLoading ? 'block' : 'none'; } }
          function showCustomAlert(message, type = 'success') {
              let alertContainer = document.getElementById('alertContainer');
              if (!alertContainer) {
-                 console.warn("Container de alerta não encontrado, criando um novo.");
-                 alertContainer = document.createElement('div');
-                 alertContainer.id = 'alertContainer';
-                 alertContainer.style.position = 'fixed';
-                 alertContainer.style.top = '80px';
-                 alertContainer.style.left = '50%';
-                 alertContainer.style.transform = 'translateX(-50%)';
-                 alertContainer.style.zIndex = '1050';
-                 alertContainer.style.width = 'max-content';
-                 alertContainer.style.maxWidth = '90%';
+                 console.warn("Criando container de alerta.");
+                 alertContainer = document.createElement('div'); alertContainer.id = 'alertContainer';
+                 alertContainer.style.position = 'fixed'; alertContainer.style.top = '80px'; alertContainer.style.left = '50%';
+                 alertContainer.style.transform = 'translateX(-50%)'; alertContainer.style.zIndex = '1050'; alertContainer.style.width = 'max-content'; alertContainer.style.maxWidth = '90%';
                  document.body.insertBefore(alertContainer, document.body.firstChild);
              }
-
              const alertBox = document.createElement('div');
              alertBox.className = `custom-alert ${type === 'error' ? 'custom-alert-error' : 'custom-alert-success'}`;
-             const alertText = document.createElement('span');
-             alertText.textContent = message;
-             const closeButton = document.createElement('button');
-             closeButton.innerHTML = '&times;';
+             const alertText = document.createElement('span'); alertText.textContent = message;
+             const closeButton = document.createElement('button'); closeButton.innerHTML = '&times;';
              closeButton.className = `custom-alert-close-button ${type === 'error' ? 'custom-alert-close-button-error' : 'custom-alert-close-button-success'}`;
              closeButton.onclick = () => alertBox.remove();
-             alertBox.appendChild(alertText);
-             alertBox.appendChild(closeButton);
-             alertContainer.appendChild(alertBox);
-
-             setTimeout(() => {
-                 if (alertBox && alertBox.parentNode === alertContainer) {
-                    alertBox.remove();
-                 }
-             }, 5000);
+             alertBox.appendChild(alertText); alertBox.appendChild(closeButton); alertContainer.appendChild(alertBox);
+             setTimeout(() => { if (alertBox && alertBox.parentNode === alertContainer) { alertBox.remove(); } }, 5000);
          }
 
         // --- Inicialização ---
         document.addEventListener('DOMContentLoaded', () => {
-            if (!document.getElementById('formulario')) console.error("Elemento form#formulario não encontrado!");
-            if (!document.querySelector('#tabela tbody')) console.error("Elemento tbody da tabela não encontrado!");
-            if (!document.getElementById('loadingSpinner')) console.warn("Elemento loadingSpinner não encontrado.");
+            // Verifica elementos essenciais
+            if (!document.getElementById('formulario')) console.error("Formulário não encontrado!");
+            if (!document.getElementById('filterDate')) console.error("Filtro de data não encontrado!");
+            if (!document.getElementById('machineStatusTableBody')) console.error("Corpo da tabela não encontrado!");
+
+            // Define a data padrão para hoje no filtro E no formulário
              const today = new Date().toISOString().split('T')[0];
-             const dataInput = document.getElementById('data');
-             if(dataInput) { dataInput.value = today; }
-             else { console.error("Campo de data não encontrado."); }
+             if(filterDateInput) filterDateInput.value = today;
+             if(dataInput) dataInput.value = today;
+
+             // Carrega os dados da data de hoje ao iniciar
+             loadMachineStatusByDate();
         });
 
     </script>
