@@ -196,7 +196,10 @@
                         <a href="Absenteismo.html" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Absenteísmo</a>
                         <a href="status.html" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Status Máquinas</a>
 <a href="capydoc2.html" class="border-blue-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium" aria-current="page">CapyDoc</a>
-                    </div>
+<a href="analise-curriculo.html" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Analise Curriculo</a>
+               
+
+</div>
                 </div>
                 <div class="flex items-center sm:hidden">
                     <button type="button" id="menu-button" class="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500" aria-controls="mobile-menu" aria-expanded="false">
@@ -217,7 +220,11 @@
                  <a href="Absenteismo.html" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900">Absenteísmo</a>
                  <a href="status.html" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900">Status Máquinas</a>
 <a href="capydoc2.html" class="block px-3 py-2 rounded-md text-base font-medium text-blue-700 bg-blue-50" aria-current="page">CapyDoc</a>
+<a href="analise-curriculo.html" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900">Analise Curriculo</a>
             </div>
+            <div class="mt-4">
+                <p class="text-sm text-gray-500">Versão 1.0</p>
+</div>
         </div>
         <div id="sidebarOverlay" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden"></div>
     </header>
@@ -257,7 +264,7 @@
                     </button>
                 </div>
                 <div id="chatOutputContainer" class="flex-grow overflow-y-auto pr-2">
-                     <div id="chatOutput">Aguardando análise...</div>
+                     <div id="chatOutputDiv">Aguardando análise...</div>
                 </div>
             </div>
         </div>
@@ -280,7 +287,7 @@
 
         const fileInput = document.getElementById('fileInput');
         const textInput = document.getElementById('textInput');
-        const chatOutputDiv = document.getElementById('chatOutput');
+        const chatOutputDiv = document.getElementById('chatOutputDiv');
         const statusMessageDiv = document.getElementById('statusMessage');
         const apiKeyInput = document.getElementById('apiKey');
         const fileNameSpan = document.getElementById('fileName');
@@ -505,12 +512,16 @@
                     * \`## Palavras-Chave e Habilidades\` (Liste as principais habilidades e palavras-chave relevantes encontradas).
                     * \`## Pontos Fortes\` (Destaque os aspectos positivos).
                     * \`## Pontos de Melhoria/Red Flags\` (Indique áreas que podem ser melhoradas ou que geram alerta, como falta de informação, inconsistências, etc.). Use ${warningIconSVG} para melhorias e ${redFlagIconSVG} para red flags.
+                    * \`## Sugestões de Alterações\` (Se aplicável, sugira melhorias ou adições que poderiam fortalecer o currículo). Use ${infoIconSVG} ou ${warningIconSVG}.
 
-                * **Se for Contrato de Aluguel (ou Documento Jurídico similar):**
+                * **Se for Contrato de Aluguel ou Compra (ou Documento Jurídico similar):**
                     * \`## Resumo das Principais Cláusulas\` (Descreva brevemente as cláusulas mais importantes: objeto, prazo, valor, rescisão, garantias).
                     * \`## Análise de Cláusulas Relevantes\` (Comente sobre cláusulas específicas que merecem atenção).
                     * \`## Possíveis Irregularidades ou Ambiguidade\` (Liste cláusulas que parecem confusas, abusivas, incompletas ou potencialmente ilegais). Use ${warningIconSVG}.
                     * \`## Red Flags e Riscos\` (Identifique pontos críticos que representam riscos significativos ou possível má fé). Use ${redFlagIconSVG}.
+                    * \`## Sugestões de Alterações\` (Se aplicável, sugira alterações ou adições que poderiam melhorar o contrato).
+                    * \`## Sugestões de Alterações\` (Se aplicável, sugira alterações ou adições que poderiam melhorar o documento). Use ${infoIconSVG} ou ${warningIconSVG}.
+                    * \`## Pontos de Atenção\` (Destaque cláusulas que exigem atenção especial ou que podem ser complexas). Use ${warningIconSVG}.
 
                 * **Se for Carta Formal / Notificação / Proposta Comercial:**
                     * \`## Objetivo Principal\` (Identifique o propósito central do documento).
@@ -523,17 +534,23 @@
                     * \`## Principais Obrigações e Direitos\` (Liste as responsabilidades e direitos do usuário/cliente).
                     * \`## Coleta e Uso de Dados (se aplicável)\` (Resuma como os dados são coletados e utilizados, especialmente em Políticas de Privacidade).
                     * \`## Cláusulas Importantes ou de Risco\` (Destaque seções que limitam direitos, impõem obrigações significativas ou são complexas). Use ${warningIconSVG} ou ${redFlagIconSVG}.
+                    * \`## Sugestões de Alterações\` (Se aplicável, sugira melhorias ou adições que poderiam fortalecer o termo/política). Use ${infoIconSVG} ou ${warningIconSVG}.
+                    * \`## Pontos de Atenção\` (Destaque cláusulas que exigem atenção especial ou que podem ser complexas). Use ${warningIconSVG}.
 
                  * **Se for Relatório Financeiro:**
                     * \`## Período e Escopo\` (Identifique o período coberto e o tipo de relatório).
                     * \`## Principais Indicadores e Resultados\` (Resuma os resultados financeiros chave apresentados).
                     * \`## Tendências e Variações\` (Comente sobre tendências ou variações significativas observadas).
                     * \`## Pontos de Atenção ou Inconsistências\` (Aponte dados que parecem incomuns, inconsistentes ou que requerem análise mais profunda). Use ${warningIconSVG}.
+                    * \`## Sugestões de Alterações\` (Se aplicável, sugira melhorias ou adições que poderiam fortalecer o relatório). Use ${infoIconSVG} ou ${warningIconSVG}.
+                    * \`## Pontos de Atenção\` (Destaque cláusulas que exigem atenção especial ou que podem ser complexas). Use ${warningIconSVG}.
 
                 * **Se for Outro:**
                     * \`## Análise Geral\` (Forneça um resumo e uma análise geral adaptada ao conteúdo do documento).
                     * \`## Pontos Chave\` (Liste os pontos mais relevantes).
                     * \`## Observações\` (Adicione quaisquer comentários ou observações pertinentes).
+                    * \`## Sugestões de Alterações\` (Se aplicável, sugira melhorias ou adições que poderiam fortalecer o documento). Use ${infoIconSVG} ou ${warningIconSVG}.
+                    * \`## Pontos de Atenção\` (Destaque cláusulas que exigem atenção especial ou que podem ser complexas). Use ${warningIconSVG}.
 
                 **3. Formato da Resposta:**
                 Use **Markdown** para formatar a resposta:
@@ -542,6 +559,9 @@
                 - Use listas (\`* \` ou \`- \`) para detalhar os pontos dentro de cada seção.
                 - Use negrito (\`**texto**\`) para destacar termos importantes.
                 - Seja conciso e direto ao ponto.
+                - Evite jargões técnicos desnecessários.
+                - Se necessário, forneça explicações simples para termos técnicos.
+                - Use emojis ou ícones para destacar pontos importantes, como ${warningIconSVG} para melhorias e ${redFlagIconSVG} para red flags.
 
                 **Texto para analisar:**
                 ---
@@ -615,77 +635,142 @@
             }
         }
 
-         async function exportarPDF() {
-             const { jsPDF } = window.jspdf;
-             const analysisText = chatOutputDiv.innerText; // Obtém o texto puro da área de análise
+        async function exportarPDF() {
+    // Garanta que a biblioteca jsPDF esteja carregada antes de chamar esta função.
+    if (typeof window.jspdf === 'undefined' || typeof window.jspdf.jsPDF === 'undefined') {
+        console.error('Biblioteca jsPDF não encontrada!');
+        showMessage('Erro: Biblioteca jsPDF não carregada.', true);
+        return;
+    }
+    const { jsPDF } = window.jspdf;
 
-             if (!analysisText) {
-                 showMessage('Nenhum resultado de análise para exportar.', true);
-                 return;
-             }
+    // Tente obter o elemento. Verifique se ele existe.
+    const chatOutputDiv = document.getElementById('chatOutputDiv'); // Supondo que 'chatOutputDiv' seja o ID
+    if (!chatOutputDiv) {
+        console.error('Elemento chatOutputDiv não encontrado!');
+        showMessage('Erro: Elemento de saída não encontrado.', true);
+        return;
+    }
 
-             showMessage('Gerando PDF...', false);
+    const analysisText = chatOutputDiv.innerText; // Pega apenas o texto visível. Formatação (negrito, etc.) será perdida.
 
-             try {
-                 const pdf = new jsPDF('p', 'mm', 'a4');
-                 const margin = 15; // Margem maior para melhor leitura
-                 const pageWidth = pdf.internal.pageSize.getWidth();
-                 const maxWidth = pageWidth - 2 * margin; // Largura máxima para o texto
-                 let yOffset = margin; // Posição vertical inicial
-                 const lineHeight = 7; // Espaçamento entre linhas em mm
-                 const titleFontSize = 18;
-                 const textFontSize = 12;
-                 const dateFontSize = 10;
+    if (!analysisText || analysisText.trim() === '') {
+        showMessage('Nenhum resultado de análise para exportar.', true);
+        return;
+    }
 
-                 // Adicionar Título
-                 pdf.setFontSize(titleFontSize);
-                 pdf.text('Relatório de Análise de Documento', margin, yOffset);
-                 yOffset += titleFontSize / 2 + 5; // Espaço após o título
+    showMessage('Gerando PDF...', false);
 
-                 // Adicionar Data
-                 pdf.setFontSize(dateFontSize);
-                 pdf.setTextColor(100); // Cor cinza para a data
-                 pdf.text(`Data: ${new Date().toLocaleDateString()}`, margin, yOffset);
-                 pdf.setTextColor(0); // Volta para preto
-                 yOffset += dateFontSize / 2 + 10; // Espaço após a data
+    try {
+        const pdf = new jsPDF('p', 'mm', 'a4'); // p=portrait, mm=milimetros, a4=tamanho
+        const margin = 15;
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const maxWidth = pageWidth - 2 * margin; // Largura útil para o texto
+        const lineHeight = 7; // Altura de cada linha em mm
+        const paragraphSpacing = 5; // Espaço extra após um parágrafo
 
-                 // Adicionar Título da Análise
-                 pdf.setFontSize(14);
-                 pdf.text('Resultado da Análise:', margin, yOffset);
-                 yOffset += 5;
+        let yOffset = margin; // Posição vertical inicial
 
-                 // Adicionar o texto da análise com quebra de linha automática
-                 pdf.setFontSize(textFontSize);
-                 const textLines = pdf.splitTextToSize(analysisText, maxWidth);
+        // Fontes
+        const titleFontSize = 18;
+        const subtitleFontSize = 14;
+        const textFontSize = 12;
+        const dateFontSize = 10;
 
-                 textLines.forEach(line => {
-                     // Verifica se a linha atual vai ultrapassar a margem inferior
-                     if (yOffset + lineHeight > pdf.internal.pageSize.getHeight() - margin) {
-                         pdf.addPage(); // Adiciona uma nova página
-                         yOffset = margin; // Reinicia a posição vertical na nova página
-                     }
-                     pdf.text(line, margin, yOffset);
-                     yOffset += lineHeight; // Move para a próxima linha
-                 });
+        // Função auxiliar para verificar espaço e adicionar nova página se necessário
+        const checkSpaceAndMove = (heightNeeded = lineHeight) => {
+            if (yOffset + heightNeeded > pageHeight - margin) { // Verifica se cabe na página atual
+                pdf.addPage();
+                yOffset = margin; // Reseta a posição Y para a margem superior na nova página
+            }
+        };
+
+        // --- Início do Conteúdo do PDF ---
+
+        // Título principal
+        checkSpaceAndMove(titleFontSize / 2); // Aproximação da altura do título
+        pdf.setFontSize(titleFontSize);
+        pdf.setFont("helvetica", "bold"); // Ou outra fonte se preferir/precisar
+        pdf.text('Relatório de Análise de Documento', margin, yOffset);
+        yOffset += titleFontSize / 2 + 5; // Move para baixo após o título
+
+        // Data
+        checkSpaceAndMove(dateFontSize / 2);
+        pdf.setFontSize(dateFontSize);
+        pdf.setFont("helvetica", "normal");
+        pdf.setTextColor(100); // Cinza
+        pdf.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, margin, yOffset); // Formato pt-BR
+        pdf.setTextColor(0); // Preto de volta
+        yOffset += dateFontSize / 2 + 10;
+
+        // Subtítulo
+        checkSpaceAndMove(subtitleFontSize / 2);
+        pdf.setFontSize(subtitleFontSize);
+        pdf.setFont("helvetica", "bold");
+        pdf.text('Resultado da Análise:', margin, yOffset);
+        yOffset += subtitleFontSize / 2 + 5;
+
+        // Texto principal
+        pdf.setFontSize(textFontSize);
+        pdf.setFont("helvetica", "normal");
+
+        // --- Processamento dos Parágrafos ---
+        // !!! PONTO CRÍTICO: Verifique como seus parágrafos são realmente separados no HTML/innerText !!!
+
+        // Opção 1: Se separados por DUAS ou mais quebras de linha (linha em branco entre eles)
+        // const paragraphs = analysisText.split(/\n\s*\n/);
+
+        // Opção 2: Se separados por UMA ÚNICA quebra de linha
+        const paragraphs = analysisText.split('\n');
+
+        // Opção 3: Se precisar tratar múltiplos espaços/quebras de linha de forma mais robusta
+        // const paragraphs = analysisText.split(/\n+/).filter(p => p.trim() !== ''); // Divide por uma ou mais quebras de linha e remove vazios
+
+        paragraphs.forEach(paragraph => {
+            const trimmedParagraph = paragraph.trim();
+            if (!trimmedParagraph) return; // Ignorar parágrafos completamente vazios ou só com espaços
+
+            // Verifica espaço ANTES de tentar adicionar as linhas do parágrafo
+            // (Poderia ser mais inteligente para evitar órfãos/viúvas, mas é mais complexo)
+            const lines = pdf.splitTextToSize(trimmedParagraph, maxWidth); // Quebra o parágrafo em linhas
+
+            // Verifica se pelo menos a primeira linha cabe
+            checkSpaceAndMove(lineHeight);
+
+            lines.forEach((line, index) => {
+                // Verifica espaço ANTES de adicionar cada linha (redundante se já checou antes, mas seguro)
+                // Se não for a primeira linha do parágrafo, a checagem anterior já garantiu espaço.
+                if (index > 0) {
+                     checkSpaceAndMove(lineHeight);
+                }
+                 pdf.text(line, margin, yOffset); // Adiciona a linha ao PDF
+                 yOffset += lineHeight; // Move para a próxima linha
+            });
+
+            yOffset += paragraphSpacing; // Adiciona espaço extra após o parágrafo
+        });
+
+        // --- Fim do Conteúdo do PDF ---
+
+        pdf.save('relatorio_capydoc.pdf'); // Salva o arquivo
+        showMessage('PDF gerado com sucesso!', false);
+
+    } catch (error) {
+        console.error('Erro detalhado ao gerar PDF:', error); // Log completo no console
+        showMessage(`Erro ao gerar PDF: ${error.message}`, true); // Mensagem mais simples para o usuário
+    }
+}
 
 
-                 pdf.save('relatorio_capydoc.pdf');
-                 showMessage('PDF gerado com sucesso!', false);
-
-             } catch (error) {
-                 console.error('Erro ao gerar PDF:', error);
-                 showMessage(`Erro ao gerar PDF: ${error.message}`, true);
-             }
-         }
-
-         fileInput.addEventListener('change', (event) => {
-             const file = event.target.files[0];
-             if (file) {
-                 fileNameSpan.textContent = file.name;
-             } else {
-                 fileNameSpan.textContent = 'Nenhum arquivo escolhido';
-             }
-         });
+fileInput.addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (file) {
+        fileNameSpan.textContent = file.name;
+    } else {
+        fileNameSpan.textContent = 'Nenhum arquivo escolhido';
+    }
+});
     </script>
 </body>
 </html>
