@@ -701,7 +701,7 @@ if (perguntasEl) {
           if (chartInst) chartInst.destroy();
           const ctx = document.getElementById('pontuacaoChart')?.getContext('2d'); if (!ctx) return;
           try {
-              chartInst = new Chart(ctx, { type: 'doughnut', data: { datasets: [{ data: [pontuacao, 100 - pontuacao], backgroundColor: [ pontuacao >= 75 ? '#10B981' : (pontuacao >= 50 ? '#F59E0B' : '#EF4444'), '#E5E7EB' ], borderColor: '#ffffff', borderWidth: 3, circumference: 180, rotation: 270, }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false }, tooltip: { enabled: true, callbacks: { label: (c) => c.dataIndex === 0 ? ` Pontuação: ${c.raw}%` : ` Restante: ${c.raw}%` } } }, animation: { animateRotate: true, duration: 600 } } });
+              chartInst = new Chart(ctx, { type: 'doughnut', data: { datasets: [{ data: [pontuacao, 100 - pontuacao], backgroundColor: [ pontuacao >= 0 ? '#10B981' : (pontuacao >= 50 ? '#F59E0B' : '#EF4444'), '#E5E7EB' ], borderColor: '#ffffff', borderWidth: 3, circumference: 180, rotation: 270, }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false }, tooltip: { enabled: true, callbacks: { label: (c) => c.dataIndex === 0 ? ` Pontuação: ${c.raw}%` : ` Restante: ${c.raw}%` } } }, animation: { animateRotate: true, duration: 600 } } });
           } catch(chartError) { displayError('avaliacaoIA', `Gráfico: ${chartError.message}`); }
       }, 150);
   }
