@@ -129,7 +129,7 @@
     finally { hideLoading('dashboard'); }
   }
 
-  // Carrega e renderiza a lista de Vagas
+  // Modificar renderVagas para buscar 'departamento' e 'descricao' se quiser exibi-los ou usá-los na edição
   async function renderVagas() {
     if (!db) return;
     showLoading('cadastroVaga');
@@ -137,52 +137,64 @@
     const ul = document.getElementById('listaVagas');
     ul.innerHTML = '<li class="text-gray-500 p-3 text-center">Carregando vagas...</li>';
     try {
-      const { data, error } = await db.from('vagas').select('id, titulo, area, requisitos').order('created_at', { ascending: false });
-      if (error) throw error;
-      vagas = data || [];
-      ul.innerHTML = '';
-      if (vagas.length === 0) { ul.innerHTML = '<li class="text-gray-500 p-3 text-center italic">Nenhuma vaga cadastrada.</li>'; }
-      else {
-          vagas.forEach(v => {
-            const li = document.createElement('li');
-            li.className = 'bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col md:flex-row justify-between items-start md:items-center hover:shadow-md transition duration-150';
-            li.innerHTML = `
-              <div class="flex-grow mb-2 md:mb-0 md:mr-4">
-                  <h4 class="font-semibold text-indigo-800 text-base">${v.titulo}</h4>
-                  <p class="text-sm text-gray-600 mb-1">${v.area}</p>
-                  <p class="text-xs text-gray-500 break-words" title="${v.requisitos}">Req: ${v.requisitos.substring(0, 100)}${v.requisitos.length > 100 ? '...' : ''}</p>
-              </div>
-              <div class="flex-shrink-0 flex space-x-2 mt-2 md:mt-0 self-end md:self-center">
-                   <button onclick="preencherFormularioVaga('${v.id}')" class="text-blue-600 hover:text-blue-800 text-xs font-medium no-print px-2 py-1 rounded hover:bg-blue-50" title="Editar Vaga"><i class="fas fa-edit mr-1"></i>Editar</button>
-                   <button onclick="confirmDeleteVaga('${v.id}', '${v.titulo}')" class="text-red-600 hover:text-red-800 text-xs font-medium no-print px-2 py-1 rounded hover:bg-red-50" title="Excluir Vaga"><i class="fas fa-trash-alt mr-1"></i>Excluir</button>
-              </div>`;
-            ul.appendChild(li);
-          });
-      }
-      updateSelectVaga();
+         // Adicionar 'departamento' e 'descricao' ao select
+        const { data, error } = await db.from('vagas')
+            .select('id, titulo, area, departamento, descricao, requisitos') // <-- Adicionado departamento e descricao
+            .order('created_at', { ascending: false });
+        if (error) throw error;
+        vagas = data || []; // Atualiza o array global com os dados completos
+        ul.innerHTML = '';
+        if (vagas.length === 0) { /* ... */ }
+        else {
+            vagas.forEach(v => {
+                const li = document.createElement('li');
+                li.className = 'bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col md:flex-row justify-between items-start md:items-center hover:shadow-md transition duration-150';
+                li.innerHTML = `
+                  <div class="flex-grow mb-2 md:mb-0 md:mr-4">
+                      <h4 class="font-semibold text-indigo-800 text-base">${v.titulo}</h4>
+                      <p class="text-sm text-gray-600 mb-1">${v.departamento || v.area || 'Sem área/depto.'}</p> 
+                      <p class="text-xs text-gray-500 break-words" title="${v.descricao}">Desc: ${v.descricao.substring(0, 50)}${v.descricao.length > 50 ? '...' : ''}</p> 
+                      <p class="text-xs text-gray-500 break-words mt-1" title="${v.requisitos}">Req: ${v.requisitos?.substring(0, 100)}${v.requisitos && v.requisitos.length > 100 ? '...' : ''}</p>
+                  </div>
+                  <div class="flex-shrink-0 flex space-x-2 mt-2 md:mt-0 self-end md:self-center">
+                      <button onclick="preencherFormularioVaga('${v.id}')" class="text-blue-600 hover:text-blue-800 text-xs font-medium no-print px-2 py-1 rounded hover:bg-blue-50" title="Editar Vaga"><i class="fas fa-edit mr-1"></i>Editar</button>
+                      <button onclick="confirmDeleteVaga('${v.id}', '${v.titulo}')" class="text-red-600 hover:text-red-800 text-xs font-medium no-print px-2 py-1 rounded hover:bg-red-50" title="Excluir Vaga"><i class="fas fa-trash-alt mr-1"></i>Excluir</button>
+                  </div>`;
+                ul.appendChild(li);
+            });
+        }
+        updateSelectVaga();
     } catch (error) { displayError('cadastroVaga', `Vagas: ${error.message}`); ul.innerHTML = `<li class="text-red-600 p-3 text-center">Erro: ${error.message}</li>`; }
     finally { hideLoading('cadastroVaga'); }
-  }
+}
+   
+     // --- ATUALIZAR FUNÇÃO preencherFormularioVaga ---
+     // Ao editar, preencher também o campo descrição
+     function preencherFormularioVaga(vagaId) {
+        const vaga = vagas.find(v => v.id === vagaId); if (!vaga) return;
+        document.getElementById('vagaEditingId').value = vaga.id;
+        document.getElementById('tituloVaga').value = vaga.titulo;
+        // Assumindo que o campo 'area' do JS/HTML corresponde a 'departamento' do DB na listagem
+        document.getElementById('areaVaga').value = vaga.departamento || vaga.area || ''; // Tenta pegar departamento ou area
+        document.getElementById('descricaoVaga').value = vaga.descricao || ''; // <-- Preenche descrição
+        document.getElementById('requisitosVaga').value = vaga.requisitos || ''; // <-- Usa || '' para evitar 'null'
+        const detailsElement = document.getElementById('formVaga').closest('details');
+        if (detailsElement && !detailsElement.open) detailsElement.open = true;
+        document.getElementById('tituloVaga').focus();
+        document.getElementById('btnCadastrarVaga').innerHTML = '<i class="fas fa-save mr-1"></i>Atualizar Vaga';
+    }
+ 
 
-   // Preenche o formulário de vaga para edição
-   function preencherFormularioVaga(vagaId) {
-       const vaga = vagas.find(v => v.id === vagaId); if (!vaga) return;
-       document.getElementById('vagaEditingId').value = vaga.id;
-       document.getElementById('tituloVaga').value = vaga.titulo;
-       document.getElementById('areaVaga').value = vaga.area;
-       document.getElementById('requisitosVaga').value = vaga.requisitos;
-       const detailsElement = document.getElementById('formVaga').closest('details');
-       if (detailsElement && !detailsElement.open) detailsElement.open = true;
-       document.getElementById('tituloVaga').focus();
-       document.getElementById('btnCadastrarVaga').innerHTML = '<i class="fas fa-save mr-1"></i>Atualizar Vaga';
-   }
-
-   // Limpa formulário de vaga e estado de edição
+   // --- ATUALIZAR FUNÇÃO resetFormVaga ---
    function resetFormVaga() {
-      document.getElementById('formVaga').reset();
-      document.getElementById('vagaEditingId').value = '';
-      document.getElementById('btnCadastrarVaga').innerHTML = '<i class="fas fa-save mr-1"></i>Salvar Vaga';
-   }
+    document.getElementById('formVaga').reset(); // reset() deve limpar todos os campos do form
+    document.getElementById('vagaEditingId').value = '';
+    document.getElementById('btnCadastrarVaga').innerHTML = '<i class="fas fa-save mr-1"></i>Salvar Vaga';
+    // Garante que o campo de descrição (se adicionado) seja limpo explicitamente se reset() falhar
+    // const descInput = document.getElementById('descricaoVaga') as HTMLTextAreaElement;
+    // if (descInput) descInput.value = '';
+}
+
 
    // Confirma e deleta vaga
    async function confirmDeleteVaga(vagaId, vagaTitulo) {
@@ -375,24 +387,50 @@
   document.getElementById('formVaga').onsubmit = async function(e) {
     e.preventDefault(); if (!db) return;
     disableButton('btnCadastrarVaga'); showLoading('cadastroVaga'); clearError('cadastroVaga');
+
     const titulo = document.getElementById('tituloVaga').value.trim();
-    const area = document.getElementById('areaVaga').value.trim();
+    const departamentoValor = document.getElementById('areaVaga').value.trim(); // Valor do campo "Área / Departamento"
+    const descricao = document.getElementById('descricaoVaga').value.trim(); // <-- Pega a descrição
     const requisitos = document.getElementById('requisitosVaga').value.trim();
     const editingId = document.getElementById('vagaEditingId').value;
-    if (!titulo || !area || !requisitos) { alert('Preencha todos os campos.'); hideLoading('cadastroVaga'); enableButton('btnCadastrarVaga'); return; }
-    const vagaData = { titulo, area, requisitos };
+
+    // Validação - agora inclui a descrição
+    if (!titulo || !departamentoValor || !descricao) { // Adicionado !descricao
+       alert('Preencha todos os campos obrigatórios (Título, Área/Departamento, Descrição).');
+       hideLoading('cadastroVaga'); enableButton('btnCadastrarVaga'); return;
+    }
+
+    // ***** CORREÇÃO AQUI (Incluir descrição) *****
+    const vagaData = {
+        titulo: titulo,
+        departamento: departamentoValor,
+        descricao: descricao, // <-- Inclui a descrição
+        requisitos: requisitos // Requisitos podem ser null/vazio se a coluna permite
+        // status: 'Aberta' // O status tem default no DB, não precisa enviar ao criar
+    };
+    // *****************************************
+
     try {
         let error;
-        if (editingId) { ({ error } = await db.from('vagas').update(vagaData).match({ id: editingId })); }
-        else { ({ error } = await db.from('vagas').insert(vagaData)); }
+        if (editingId) {
+            // Atualiza incluindo a descrição
+            ({ error } = await db.from('vagas').update({ titulo, departamento: departamentoValor, descricao, requisitos }).match({ id: editingId }));
+        } else {
+            ({ error } = await db.from('vagas').insert(vagaData));
+        }
         if (error) throw error;
-        resetFormVaga();
+        resetFormVaga(); // Lembre-se de limpar o campo descrição no reset também
         const detailsElement = e.target.closest('details'); if (detailsElement) detailsElement.open = false;
         await renderVagas(); await updateCounts();
         alert(`Vaga ${editingId ? 'atualizada' : 'cadastrada'}!`);
-    } catch (error) { displayError('cadastroVaga', `Falha: ${error.message}`);
-    } finally { hideLoading('cadastroVaga'); enableButton('btnCadastrarVaga'); }
+    } catch (error) {
+        // O erro agora pode ser sobre 'descricao' se o campo HTML não for adicionado/preenchido
+        displayError('cadastroVaga', `Falha: ${error.message}`);
+    } finally {
+        hideLoading('cadastroVaga'); enableButton('btnCadastrarVaga');
+    }
   };
+
 
   // Salva ou Atualiza Candidato
   document.getElementById('formCandidato').onsubmit = async function(e) {
@@ -483,7 +521,17 @@
           case 'gemini':
                endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`;
                headers['x-goog-api-key'] = apiKey;
-               body = { contents: [{ parts: [{ "text": prompt }] }], generationConfig: { responseMimeType: "application/json" } };
+               body = {
+                contents: [{ parts: [{ "text": prompt }] }],
+                generationConfig: {
+                  temperature: 0.35, // <--- AJUSTE AQUI (ex: 0.4)
+                  responseMimeType: "application/json",
+                  topK: 40,
+                  topP: 0.95,
+                  maxOutputTokens: 8194,
+                  stopSequences: ["\n\n"]
+                },
+              };
               break;
           case 'openai':
               endpoint = 'https://api.openai.com/v1/chat/completions';
@@ -574,22 +622,22 @@
            prompt += `**CANDIDATO:**\n- Nome: ${candidato.nome}\n- Email: ${candidato.email}\n- Telefone: ${candidato.telefone || 'N/A'}\n`;
            if (curriculoUrl) { prompt += `- Currículo Anexado: Sim (Priorizar análise do conteúdo).\n\n`; }
            else { prompt += `- Currículo Anexado: Não.\n\n`; }
-           prompt += `**TAREFA IA:**\nAvalie a compatibilidade (0-100). Liste pontos fortes (matches) e fracos (redflags). Gere relatório conciso e sugestão de ação e perguntas para ser feita ao candidato na entrevista.\n`;
-           prompt += `**FORMATO OBRIGATÓRIO (JSON):**\n{\n  "pontuacao": <int>, "matches": [<string>], "redflags": [<string>], "relatorio": "<string>", "sugestao": "<string>"\n}\n`;
+           prompt += `**TAREFA IA:**\nAvalie a compatibilidade (0-100). Liste pontos fortes (matches) e fracos (redflags). Gere relatório conciso e sugestão de ação. Gere perguntas para ser feita ao candidato na entrevista.\n`;
+           prompt += `**FORMATO OBRIGATÓRIO (JSON):**\n{\n  "pontuacao": <int>, "matches": ["<string>", "<string>", ...], "redflags": ["<string>", "<string>", ...], "relatorio": "<string>", "sugestao": "<string>", "perguntas": "<string>"\n}\n`;
            prompt += `**IMPORTANTE:** Responda APENAS com o objeto JSON VÁLIDO, sem nenhum texto adicional, comentários ou formatação markdown (como \`\`\`json).`;
 
           // Chama a API configurada
           const aiResult = await callConfiguredAI_API(prompt);
 
           // Processa resultado
-          const { pontuacao, matches, redflags, relatorio, sugestao } = aiResult;
+          const { pontuacao, matches, redflags, relatorio, sugestao, perguntas } = aiResult;
           const pontuacaoValidada = Math.max(0, Math.min(100, Math.round(pontuacao)));
           const matchesValidados = Array.isArray(matches) ? matches.map(String) : [];
           const redflagsValidados = Array.isArray(redflags) ? redflags.map(String) : [];
-          const relatorioValidado = String(relatorio || '-'); const sugestaoAcaoValidada = String(sugestao || '-');
+          const relatorioValidado = String(relatorio || '-'); const sugestaoAcaoValidada = String(sugestao || '-'); const perguntasValidada = String(perguntas || '-'); // Adiciona perguntas
           let status = 'Em Análise'; // Status inicial após análise
-           if (sugestaoAcaoValidada.toLowerCase().includes('entrevista') || pontuacaoValidada >= 75) status = 'Recomendado'; // Ex: Status pós-análise
-           else if (sugestaoAcaoValidada.toLowerCase().includes('não recomendado') || pontuacaoValidada < 40) status = 'Não Recomendado';
+           if (sugestaoAcaoValidada.toLowerCase().includes('entrevista') || pontuacaoValidada > 65) status = 'Recomendado'; // Ex: Status pós-análise
+           else if (sugestaoAcaoValidada.toLowerCase().includes('não recomendado') || pontuacaoValidada < 45) status = 'Não Recomendado';
 
           // Salva no Supabase (ainda sem o status de agendado)
           const { error: saveError } = await db.from('avaliacoes').upsert({
@@ -604,7 +652,7 @@
           // Passa o contexto para a função de exibição
           exibeAvaliacaoIA({
               pontuacao: pontuacaoValidada, matches: matchesValidados, redflags: redflagsValidados,
-              relatorio: relatorioValidado, sugestaoAcao: sugestaoAcaoValidada,
+              relatorio: relatorioValidado, sugestaoAcao: sugestaoAcaoValidada,perguntas: perguntasValidada, // Adiciona perguntas
               contexto: currentAvaliacaoContext // Passa o contexto atual
            });
 
@@ -616,7 +664,7 @@
   };
 
   // Exibe o resultado da Avaliação IA na interface
-  function exibeAvaliacaoIA({ pontuacao, matches, redflags, relatorio, sugestaoAcao, contexto }) {
+  function exibeAvaliacaoIA({ pontuacao, matches, redflags, relatorio, sugestaoAcao, perguntas, contexto }) {
       // Guarda o contexto atual nos campos hidden para uso no agendamento
       document.getElementById('currentAvaliacaoCandidatoId').value = contexto.candidatoId;
       document.getElementById('currentAvaliacaoVagaId').value = contexto.vagaId;
@@ -630,6 +678,10 @@
       else { ulRed.innerHTML = '<li class="text-gray-400 italic">Nenhum ponto de atenção.</li>'; }
       document.getElementById('relatorioDetalhado').textContent = relatorio || '-';
       document.getElementById('sugestaoAcao').textContent = sugestaoAcao || '-';
+      const perguntasEl = document.getElementById('perguntas');
+if (perguntasEl) {
+    perguntasEl.textContent = perguntas || 'Nenhuma pergunta sugerida.'; // Usa o valor recebido
+}
       document.getElementById('avaliacaoResultado').style.display = 'block';
       document.getElementById('avaliacaoResultado').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
