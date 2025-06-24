@@ -1,433 +1,708 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Geral</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lançamento Diário - CDM-MB</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <!-- jsPDF para exportação de PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
     <style>
-        /* Estilos gerais */
-        body { background-color: #f3f4f6; font-family: 'Inter', sans-serif; margin: 0; }
-        /* Estilos para o painel lateral (sidebar) */
-        #sidebar { transition: transform 0.3s ease-in-out; }
-        #sidebarOverlay { transition: opacity 0.3s ease-in-out; }
-        .main-container { max-width: 1500px; margin: 1rem auto; background-color: white; padding: 2rem; border-radius: 0.5rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
+        :root { --sidebar-width: 250px; --sidebar-width-collapsed: 80px; }
+        body { background-color: #f3f4f6; font-family: 'Inter', sans-serif; }
+        .main-content { transition: margin-left 0.3s ease; margin-left: var(--sidebar-width-collapsed); }
+        .sidebar { width: var(--sidebar-width); transition: width 0.3s ease, transform 0.3s ease; }
+        .sidebar.collapsed { width: var(--sidebar-width-collapsed); }
+        .sidebar.collapsed .nav-text, .sidebar.collapsed .long-title { display: none; }
+        @media (max-width: 768px) {
+            .main-content { margin-left: 0; }
+            .sidebar { transform: translateX(-100%); width: var(--sidebar-width); }
+            .sidebar.show { transform: translateX(0); }
+            .sidebar.show .nav-text, .sidebar.show .long-title { display: inline; }
+            .sidebar.collapsed { width: var(--sidebar-width); }
+        }
 
-        /* Estilo para cards de resumo */
-        .summary-card {
-            background-color: #ffffff;
-            border-radius: 0.5rem; /* rounded-lg */
-            padding: 1rem 1.5rem; /* p-4 sm:p-6 */
-            box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1); /* shadow-sm */
-            border: 1px solid #e5e7eb; /* border border-gray-200 */
-            text-align: center;
-        }
-        .summary-card dt { /* Descrição (ex: Presentes) */
-            color: #6b7280; /* text-gray-500 */
-            font-size: 0.875rem; /* text-sm */
-            font-weight: 500; /* font-medium */
-            margin-bottom: 0.25rem; /* mb-1 */
-            white-space: nowrap;
-        }
-        .summary-card dd { /* Valor (ex: 15) */
-            font-size: 1.875rem; /* text-3xl */
-            font-weight: 700; /* font-bold */
-            color: #1f2937; /* text-gray-800 */
-        }
-        /* Cores específicas para os cards */
-        .card-presentes dd { color: #10b981; } /* emerald-500 */
-        .card-faltas-justif dd { color: #f59e0b; } /* amber-500 */
-        .card-faltas-nao-justif dd { color: #ef4444; } /* red-500 */
-        .card-outros dd { color: #6366f1; } /* indigo-500 */
-
-        /* Estilo para a tabela de máquinas */
-        #machineStatusTable { border-collapse: separate; border-spacing: 0; width: 100%; margin-bottom: 1.5rem; border: 1px solid #e5e7eb; border-radius: 0.5rem; overflow: hidden; }
-        #machineStatusTable th, #machineStatusTable td { border-bottom: 1px solid #e5e7eb; padding: 0.75rem 1rem; text-align: left; vertical-align: middle; }
-        #machineStatusTable th { background-color: #f9fafb; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: #6b7280; white-space: nowrap; border-top: none; border-bottom-width: 2px; }
-        #machineStatusTable td { font-size: 0.875rem; color: #374151; }
-        #machineStatusTable tbody tr:last-child td { border-bottom: none; }
-        #machineStatusTable tbody tr:hover { background-color: #eff6ff; }
+        /* Estilos de botões e cards */
+        .action-button { padding: 0.6rem 1rem; border-radius: 0.375rem; font-weight: 600; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; }
+        .form-input, .form-select { padding: 0.6rem 0.75rem; border: 1px solid #d1d5db; border-radius: 0.375rem; box-sizing: border-box; font-size: 0.875rem; width: 100%; background-color: white; }
+        .btn-primary { background-color: #4f46e5; color: white; } .btn-primary:hover { background-color: #4338ca; }
+        .btn-add { background-color: #28a745; color: white; } .btn-add:hover { background-color: #218838; }
+        .btn-update { background-color: #f59e0b; color: white; } .btn-update:hover { background-color: #d97706; }
+        .btn-cancel-edit { background-color: #6b7280; color: white; } .btn-cancel-edit:hover { background-color: #4b5563; }
+        .btn-load { background-color: #6366f1; } .btn-load:hover { background-color: #4f46e5; }
+        .btn-register { background-color: #5a67d8; color: white; } .btn-register:hover { background-color: #434190; }
+        .btn-danger { background-color: #dc2626; color: white; } .btn-danger:hover { background-color: #991b1b; }
+        .remove-button { background: none; border: none; color: #ef4444; cursor: pointer; text-decoration: underline; }
+        .edit-button { background: none; border: none; color: #3b82f6; cursor: pointer; text-decoration: underline; margin-right: 1rem; }
+        
+        /* Modal Styles */
+        .modal-overlay { position: fixed; inset: 0; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1050; opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s; }
+        .modal-overlay.show { opacity: 1; visibility: visible; }
+        .modal-content { background-color: white; padding: 1.5rem 2rem; border-radius: 0.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); width: 90%; max-width: 500px; transform: scale(0.95); transition: transform 0.3s; }
+        .modal-overlay.show .modal-content { transform: scale(1); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.75rem; margin-bottom: 1rem; }
+        .modal-title { font-size: 1.25rem; font-weight: 600; color: #1f2937; }
+        .modal-close-button { background: none; border: none; font-size: 1.5rem; line-height: 1; cursor: pointer; color: #9ca3af; } .modal-close-button:hover{color: #4b5563;}
 
         /* Loading Spinner */
-        #loadingSpinner { display: none; position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; z-index: 1001; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #loadingOverlay { display: none; position: fixed; inset: 0; background-color: rgba(255, 255, 255, 0.7); z-index: 9999; }
+        #loadingSpinner { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); border: 5px solid #f3f3f3; border-top: 5px solid #4f46e5; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: translate(-50%, -50%) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg); } }
+        
+        #tabela caption { caption-side: top; text-align: center; font-size: 1.5em; font-weight: bold; padding: 5px; padding-bottom: 15px; background-color: #9E1921; color: #fff; }
 
-        /* Estilos de Impressão */
-        @media print {
-            body { padding: 0; margin: 0; background-color: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            /* Esconde header, filtros, gráfico, etc. */
-            header, #filterSection, #attendanceChartContainer, .button-container, #loadingSpinner { display: none !important; }
-            .main-container { box-shadow: none; border: none; padding: 1cm; margin: 0; max-width: 100%; border-radius: 0; }
-            h1, h2, h3 { text-align: center; margin-bottom: 1rem;}
-            /* Mostra cards e tabela */
-            #attendanceSummary, #machineStatusSection { display: block !important; margin-bottom: 2rem; }
-            #attendanceSummary > div { /* Garante que o grid dos cards funcione */
-                 display: grid !important;
-                 grid-template-columns: repeat(4, 1fr) !important; /* Ajuste conforme necessário */
-                 gap: 1rem !important;
-            }
-            .summary-card { box-shadow: none; border: 1px solid #ccc; }
-            .table-section .overflow-x-auto { overflow: visible; box-shadow: none; border: 1px solid #ccc; border-radius: 0; }
-            #machineStatusTable { border-radius: 0; border: none; font-size: 9pt; }
-            #machineStatusTable th, #machineStatusTable td { border: 1px solid #ddd; padding: 0.3rem 0.5rem; font-size: 8pt;}
-            #machineStatusTable th { background-color: #eee !important; color: #333 !important;}
-            #machineStatusTable tbody tr { page-break-inside: avoid; }
+        /* Animated Button Styles */
+        .btn-animated {
+          outline: none;
+          height: 40px;
+          text-align: center;
+          min-width: 150px;
+          border-radius: 40px;
+          background: #fff;
+          border: 2px solid;
+          letter-spacing: 1px;
+          text-shadow: 0;
+          font-size: 12px;
+          font-weight: bold;
+          cursor: pointer;
+          transition: all 0.25s ease;
         }
+        .btn-animated:hover { color: white; }
+        .btn-animated.onclic {
+          width: 40px;
+          min-width: 40px;
+          border-color: #bbbbbb;
+          border-width: 3px;
+          font-size: 0;
+          animation: rotating 2s 0.25s linear infinite;
+          pointer-events: none;
+        }
+        .btn-animated.onclic .btn-text { display: none; }
+        .btn-animated.validate {
+          font-size: 0;
+          width: 40px;
+          min-width: 40px;
+          color: white;
+          pointer-events: none;
+        }
+        .btn-animated.validate::after { content: "✓"; font-size: 16px; font-weight: bold; }
+        @keyframes rotating { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        
+        /* Color Variants */
+        .btn-generate-animated { border-color: #1ECD97; color: #1ECD97; }
+        .btn-generate-animated:hover { background: #1ECD97; }
+        .btn-generate-animated.onclic { border-left-color: #1ECD97; }
+        .btn-generate-animated.validate { background: #1ECD97; border-color: #1ECD97; }
+
+        .btn-export-txt-animated { border-color: #06b6d4; color: #06b6d4; }
+        .btn-export-txt-animated:hover { background: #06b6d4; }
+        .btn-export-txt-animated.onclic { border-left-color: #06b6d4; }
+        .btn-export-txt-animated.validate { background: #06b6d4; border-color: #06b6d4; }
+        
+        .btn-export-pdf-animated { border-color: #ef4444; color: #ef4444; }
+        .btn-export-pdf-animated:hover { background: #ef4444; }
+        .btn-export-pdf-animated.onclic { border-left-color: #ef4444; }
+        .btn-export-pdf-animated.validate { background: #ef4444; border-color: #ef4444; }
+
     </style>
 </head>
-<body class="bg-gray-100">
+<body class="bg-gray-200">
+    <div id="loadingOverlay"><div id="loadingSpinner"></div></div>
+    <div id="alertContainer" class="fixed top-20 left-1/2 -translate-x-1/2 z-[1060] w-max max-w-[90%]"></div>
 
-    <header class="bg-white shadow-md sticky top-0 z-40">
-        <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16">
-                <div class="flex items-center">
-                    <span class="font-bold text-xl text-gray-800">Dashboard Geral</span>
-                    <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
-                        <a href="index.html" class="border-blue-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium" aria-current="page">Dashboard</a>
-                        <a href="Absenteismo.html" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Absenteísmo</a>
-                        <a href="status.html" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Status Máquinas</a>
-<a href="capydoc2.html" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">CapyDoc</a>
-<a href="analise-curriculo.html" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Analise Curriculo</a>
-               
-
-</div>
-                </div>
-                <div class="flex items-center sm:hidden">
-                    <button type="button" id="menu-button" class="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500" aria-controls="mobile-menu" aria-expanded="false">
-                        <span class="sr-only">Abrir menu principal</span>
-                        <svg id="icon-hamburger" class="block h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
-                        <svg id="icon-close" class="hidden h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                </div>
-            </div>
+    <!-- SIDEBAR -->
+    <aside id="sidebar" class="sidebar bg-gray-800 text-white h-screen fixed top-0 left-0 z-40 flex flex-col collapsed">
+        <div class="p-4 flex items-center justify-between h-16 border-b border-gray-700">
+            <h1 class="text-2xl font-bold whitespace-nowrap overflow-hidden">
+                <span class="long-title">CDM - MB</span>
+            </h1>
+            <button id="close-sidebar" class="text-gray-400 hover:text-white md:hidden text-3xl leading-none">&times;</button>
+        </div>
+        <nav class="flex-grow p-2">
+            <ul>
+                <li>
+                    <a href="#" class="flex items-center p-3 my-1 rounded-lg bg-gray-900" title="Lançamento Diário">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        <span class="ml-4 nav-text">Lançamento Diário</span>
+                    </a>
+                </li>
+ <li><a href="absenteismo.html" class="flex items-center p-3 my-1 rounded-lg hover:bg-gray-700" title="Absenteísmo"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.653-.225-1.26-.623-1.741M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 0c-2.21 0-4 2.24-4 5v2h8v-2c0-2.76-1.79-5-4-5z"></path></svg><span class="ml-4 nav-text">Absenteísmo</span></a></li>
+                <li>
+                    <a href="dashboard.html" class="flex items-center p-3 my-1 rounded-lg hover:bg-gray-700" title="Dashboard">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                        <span class="ml-4 nav-text">Dashboard</span>
+                    </a>
+                </li>
+            </ul>
         </nav>
-        <div id="sidebar" class="sm:hidden fixed inset-y-0 left-0 transform -translate-x-full w-64 bg-white shadow-xl z-50 p-4">
-            <div class="flex justify-between items-center mb-4">
-                <span class="font-bold text-lg text-gray-800">Menu</span>
-                <button type="button" id="close-sidebar-button" class="p-2 text-gray-400 hover:text-gray-600"><svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
-            </div>
-            <div class="space-y-1">
-                 <a href="index.html"class="block px-3 py-2 rounded-md text-base font-medium text-blue-700 bg-blue-50" aria-current="page">Dashboard</a>
-                 <a href="Absenteismo.html" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900">Absenteísmo</a>
-                 <a href="status.html" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900">Status Máquinas</a>
-<a href="capydoc2.html" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900">CapyDoc</a>
-<a href="analise-curriculo.html" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900">Analise Curriculo</a>
-            </div>
-            <div class="mt-4">
-                <p class="text-sm text-gray-500">Versão 1.0</p>
-</div>
+        <div class="p-2 border-t border-gray-700">
+            <a href="#" id="settings-button" class="flex items-center p-3 rounded-lg hover:bg-gray-700" title="Configurações">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.096 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                <span class="ml-4 nav-text">Configurações</span>
+            </a>
         </div>
-        <div id="sidebarOverlay" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden"></div>
-    </header>
+    </aside>
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden md:hidden"></div>
 
-    <div id="loadingSpinner"></div>
+    <!-- MAIN CONTENT WRAPPER -->
+    <div class="main-content">
+        <!-- HEADER -->
+        <header class="bg-white shadow-md sticky top-0 z-20 h-16 flex items-center px-6">
+            <button id="menu-button" class="p-2 text-gray-500 rounded-md -ml-2 mr-2">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+            </button>
+            <h1 class="text-xl font-semibold text-gray-800">
+                <span class="hidden sm:inline">Ciclos Diários de Máquinas - MB</span>
+                <span class="sm:hidden">CDM - MB</span>
+            </h1>
+        </header>
 
-    <div class="main-container mt-4">
-        <h1 class="text-3xl font-bold mb-6 text-center text-gray-800">Dashboard Geral</h1>
-
-        <div id="filterSection" class="mb-8 p-4 bg-gray-50 rounded-lg border border-gray-200 flex flex-col sm:flex-row items-center justify-center gap-4">
-            <label for="dashboardDate" class="text-sm font-medium text-gray-700">Selecione a Data:</label>
-            <input type="date" id="dashboardDate" class="filter-input w-full sm:w-auto shadow-sm focus:ring-blue-500 focus:border-blue-500 border-gray-300 rounded-md">
-        </div>
-
-        <section id="attendanceSection" class="mb-10">
-            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Relatório de Absenteísmo do Dia</h2>
-            <div id="attendanceSummary" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                <dl class="summary-card card-presentes">
-                    <dt>Presentes</dt>
-                    <dd id="summaryPresentes">0</dd>
-                </dl>
-                <dl class="summary-card card-faltas-justif">
-                    <dt>Faltas Justificadas</dt>
-                    <dd id="summaryFaltasJustif">0</dd>
-                </dl>
-                <dl class="summary-card card-faltas-nao-justif">
-                    <dt>Faltas Não Justificadas</dt>
-                    <dd id="summaryFaltasNaoJustif">0</dd>
-                </dl>
-                <dl class="summary-card card-outros">
-                    <dt>Outros (Férias, Licença, etc.)</dt>
-                    <dd id="summaryOutros">0</dd>
-                </dl>
+        <!-- PAGE CONTENT -->
+        <main class="p-4 sm:p-6 lg:p-8">
+            <h1 class="text-3xl font-bold text-gray-900 mb-6 text-center">STATUS MÁQUINAS - 2º TURNO</h1>
+            <div class="flex justify-center gap-4 mb-6"><button id="btnAbrirModalMaquina" class="action-button btn-register">Cadastrar Máquina</button><button id="btnAbrirModalMolde" class="action-button btn-register">Cadastrar Molde</button></div>
+            <form id="formulario" class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 p-6 bg-white rounded-lg shadow-md">
+                 <input type="hidden" id="editingRecordId">
+                <div><label for="data" class="block text-sm font-medium text-gray-700 mb-1">Data</label><input type="date" id="data" required class="form-input"/></div>
+                <div><label for="maquina-select" class="block text-sm font-medium text-gray-700 mb-1">Máquina</label><select id="maquina-select" required class="form-select"><option value="">Carregando...</option></select></div>
+                <div><label for="molde-select" class="block text-sm font-medium text-gray-700 mb-1">Molde</label><select id="molde-select" required class="form-select"><option value="">Carregando...</option></select></div>
+                <div><label for="cicloPadrao" class="block text-sm font-medium text-gray-700 mb-1">Ciclo Padrão</label><input type="text" id="cicloPadrao" required class="form-input"/></div>
+                <div><label for="cicloAtual" class="block text-sm font-medium text-gray-700 mb-1">Ciclo Atual</label><input type="text" id="cicloAtual" required class="form-input"/></div>
+                <div class="sm:col-span-2">
+                    <label for="obs" class="block text-sm font-medium text-gray-700 mb-1">Observação</label>
+                    <div class="relative">
+                        <textarea id="obs" rows="3" class="form-input shadow-sm focus:ring-indigo-500 focus:border-indigo-500 pr-10"></textarea>
+                        <button type="button" id="sugestao-ia-btn" title="Sugerir observação com IA" class="absolute top-2 right-2 p-1.5 rounded-full text-yellow-400 hover:bg-yellow-100 hover:text-yellow-600 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div id="formButtons" class="sm:col-span-2 flex flex-col sm:flex-row justify-center gap-3"><button type="submit" id="submitButton" class="action-button btn-add w-full sm:w-auto">Salvar Novo Status</button><button type="button" id="cancelEditButton" onclick="cancelEdit()" class="action-button btn-cancel-edit w-full sm:w-auto hidden">Cancelar Edição</button></div>
+            </form>
+            <div class="mb-4 p-4 bg-white rounded-lg shadow-md flex flex-col sm:flex-row items-center justify-center gap-4">
+                 <label for="filterDate" class="text-sm font-medium text-gray-700 whitespace-nowrap">Carregar Registros da Data:</label>
+                 <input type="date" id="filterDate" class="form-input w-full sm:w-auto">
+                 <button onclick="loadMachineStatusByDate()" class="action-button btn-load w-full sm:w-auto">Carregar Dados</button>
+             </div>
+             <div id="captureArea" class="overflow-x-auto bg-white rounded-lg shadow-md p-4">
+                 <table id="tabela" class="min-w-full bg-white">
+                     <caption>STATUS MÁQUINAS - 2º TURNO</caption>
+                     <thead><tr><th>Data</th><th>Máquina</th><th>Molde</th><th>Ciclo Padrão</th><th>Ciclo Atual</th><th>Observação</th><th>Ações</th></tr></thead>
+                     <tbody id="machineStatusTableBody" class="divide-y divide-gray-200"><tr><td colspan="7" class="text-center py-4 text-gray-500">Selecione uma data e clique em "Carregar Dados".</td></tr></tbody>
+                 </table>
             </div>
-            <div id="attendanceChartContainer" class="bg-white p-4 rounded-lg shadow-sm border border-gray-200" style="height: 300px;">
-                 <canvas id="attendancePieChart"></canvas>
-            </div>
-        </section>
-
-        <section id="machineStatusSection">
-            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Status das Máquinas do Dia</h2>
-            <div class="table-section">
-                <div class="overflow-x-auto shadow-md rounded-lg border border-gray-200">
-                    <table id="machineStatusTable" class="min-w-full bg-white">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th>Máquina</th>
-                                <th>Molde</th>
-                                <th>Ciclo Padrão</th>
-                                <th>Ciclo Atual</th>
-                                <th>Observação</th>
-                            </tr>
-                        </thead>
-                        <tbody id="machineStatusTableBody" class="divide-y divide-gray-200">
-                            <tr><td colspan="5" class="text-center py-4 text-gray-500">Selecione uma data para ver o status.</td></tr>
-                        </tbody>
-                    </table>
+            <div class="mt-6 text-center bg-white p-6 rounded-lg shadow-md">
+                <h3 class="text-lg font-medium text-gray-700 mb-4">Exportar Relatório da Tabela</h3>
+                <div class="flex justify-center gap-4 flex-wrap items-center">
+                    <button id="generate-image-btn" class="btn-animated btn-generate-animated"><span class="btn-text">GERAR IMAGEM</span></button>
+                    <button id="export-txt-btn" class="btn-animated btn-export-txt-animated"><span class="btn-text">EXPORTAR TXT</span></button>
+                    <button id="export-pdf-btn" class="btn-animated btn-export-pdf-animated"><span class="btn-text">EXPORTAR PDF</span></button>
+                </div>
+                <div id="imagemTabela" class="mt-4 flex justify-center"></div>
+                <div id="download-container" class="mt-4 text-center hidden">
+                    <button id="download-image-btn" class="action-button btn-primary">Baixar Imagem</button>
                 </div>
             </div>
-        </section>
+        </main>
+    </div>
 
-         </div> <script>
-        // --- Lógica da Navegação Responsiva ---
-        const menuButton = document.getElementById('menu-button');
-        const closeSidebarButton = document.getElementById('close-sidebar-button');
-        const sidebar = document.getElementById('sidebar');
-        const sidebarOverlay = document.getElementById('sidebarOverlay');
-        const iconHamburger = document.getElementById('icon-hamburger');
-        const iconClose = document.getElementById('icon-close');
-        function openSidebar() { sidebar.classList.remove('-translate-x-full'); sidebar.classList.add('translate-x-0'); sidebarOverlay.classList.remove('hidden'); sidebarOverlay.classList.add('opacity-100'); iconHamburger.classList.add('hidden'); iconClose.classList.remove('hidden'); menuButton.setAttribute('aria-expanded', 'true'); }
-        function closeSidebar() { sidebar.classList.add('-translate-x-full'); sidebar.classList.remove('translate-x-0'); sidebarOverlay.classList.add('hidden'); sidebarOverlay.classList.remove('opacity-100'); iconHamburger.classList.remove('hidden'); iconClose.classList.add('hidden'); menuButton.setAttribute('aria-expanded', 'false'); }
-        menuButton.addEventListener('click', () => { if (sidebar.classList.contains('-translate-x-full')) openSidebar(); else closeSidebar(); });
-        closeSidebarButton.addEventListener('click', closeSidebar);
-        sidebarOverlay.addEventListener('click', closeSidebar);
+    <!-- MODALS -->
+    <div id="modal-settings" class="modal-overlay"><div class="modal-content max-w-lg"><div class="modal-header"><h2 class="modal-title">Configurações</h2><button class="modal-close-button" data-close-modal-id="modal-settings">&times;</button></div><div><label for="gemini-api-key" class="block text-sm font-medium text-gray-700 mb-1">Sua Chave API Google Gemini</label><input type="password" id="gemini-api-key" class="w-full p-2 border rounded-md mb-2" placeholder="Cole sua chave aqui"><button id="save-api-key" class="action-button btn-primary w-full mb-4">Salvar Chave</button><div class="text-center"><button id="show-tutorial" class="text-indigo-600 hover:underline text-sm">Como Obter Chave API?</button></div></div></div></div>
+    <div id="modal-tutorial" class="modal-overlay"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Como Obter sua Chave API do Google Gemini</h2><button class="modal-close-button" data-close-modal-id="modal-tutorial">&times;</button></div><div class="prose max-w-none text-gray-700"><p>Para utilizar todas as funcionalidades de análise por IA, você precisará de uma Chave API do Google Gemini. O Gemini 1.5 Flash, que é necessária, oferece um nível gratuito generoso.</p><h4>Passo 1: Acesse o Google AI Studio</h4><p>Se você ainda não tem uma conta Google, precisará criar uma. Depois, acesse o Google AI Studio:</p><a href="https://aistudio.google.com/app/apikey" target="_blank" class="action-button btn-primary">Ir para o Google AI Studio &rarr;</a><h4 class="mt-4">Passo 2: Gere sua Chave API</h4><ul><li>Procure pela opção "Get API key" ou "Criar chave API".</li><li>Clique em "Create API key in new project".</li><li>Siga as instruções para nomear seu projeto, se necessário.</li><li>Após a criação, sua chave API será exibida.</li></ul><h4>Passo 3: Copie e Cole sua Chave API</h4><ul><li>Clique no botão para copiar sua chave API.</li><li>Volte para esta página (dentro do modal de Configurações).</li><li>Cole a chave no campo "Sua Chave API Google Gemini".</li><li>Clique em "Salvar".</li></ul><p class="font-semibold mt-4">Importante: Guarde sua chave API em um local seguro e não a compartilhe publicamente.</p></div><div class="mt-6 text-center"><button class="action-button btn-secondary" data-close-modal-id="modal-tutorial">Entendi - Fechar Tutorial</button></div></div></div>
+    <div id="modalMaquina" class="modal-overlay"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Cadastrar/Gerenciar Máquinas</h2><button class="modal-close-button" data-close-modal-id="modalMaquina">&times;</button></div><form id="formMaquina"><label for="nomeMaquina" class="block text-sm font-medium text-gray-700 mb-1">Nome da Máquina</label><input type="text" id="nomeMaquina" required class="form-input mb-4" placeholder="Ex: Injetora 10"><button type="submit" class="action-button btn-add w-full">Adicionar Máquina</button></form><hr class="my-4"><h3 class="text-md font-medium text-gray-800 mb-2">Máquinas Cadastradas</h3><div id="listaMaquinas" class="max-h-60 overflow-y-auto pr-2"><p class="text-gray-500">Carregando...</p></div></div></div>
+    <div id="modalMolde" class="modal-overlay"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Cadastrar/Gerenciar Moldes</h2><button class="modal-close-button" data-close-modal-id="modalMolde">&times;</button></div><form id="formMolde"><label for="nomeMolde" class="block text-sm font-medium text-gray-700 mb-1">Nome do Molde</label><input type="text" id="nomeMolde" required class="form-input mb-4" placeholder="Ex: Molde Tampa 345"><button type="submit" class="action-button btn-add w-full">Adicionar Molde</button></form><hr class="my-4"><h3 class="text-md font-medium text-gray-800 mb-2">Moldes Cadastrados</h3><div id="listaMoldes" class="max-h-60 overflow-y-auto pr-2"><p class="text-gray-500">Carregando...</p></div></div></div>
 
-        // --- Lógica da Dashboard ---
+<script>
+// --- SUPABASE CLIENT ---
+const SUPABASE_URL = 'https://ranhhacbgyfpzrjdynnd.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJhbmhoYWNiZ3lmcHpyamR5bm5kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM5MDU4OTEsImV4cCI6MjA1OTQ4MTg5MX0.Ey-X4Tz8krKHSICnYdHdBaI3q5WcRgUVwA8jOhfMr7Y';
+const { createClient } = supabase;
+const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // --- Configuração do Supabase ---
-        const SUPABASE_URL = 'https://ranhhacbgyfpzrjdynnd.supabase.co'; // Substitua se necessário
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJhbmhoYWNiZ3lmcHpyamR5bm5kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM5MDU4OTEsImV4cCI6MjA1OTQ4MTg5MX0.Ey-X4Tz8krKHSICnYdHdBaI3q5WcRgUVwA8jOhfMr7Y'; // Substitua se necessário
+// --- GLOBAL VARIABLES & DOM ELEMENTS ---
+let generatedImageUrl = null;
+const loadingOverlay = document.getElementById('loadingOverlay');
+const form = document.getElementById('formulario');
+const filterDateInput = document.getElementById('filterDate');
+const machineStatusTableBody = document.getElementById('machineStatusTableBody');
+const editingRecordIdInput = document.getElementById('editingRecordId');
+const submitButton = document.getElementById('submitButton');
+const cancelEditButton = document.getElementById('cancelEditButton');
+const dataInput = document.getElementById('data');
+const maquinaSelect = document.getElementById('maquina-select');
+const moldeSelect = document.getElementById('molde-select');
+const cicloPadraoInput = document.getElementById('cicloPadrao');
+const cicloAtualInput = document.getElementById('cicloAtual');
+const obsInput = document.getElementById('obs');
+const downloadContainer = document.getElementById('download-container');
+const downloadImageBtn = document.getElementById('download-image-btn');
+const sugestaoIaBtn = document.getElementById('sugestao-ia-btn');
 
-        if (SUPABASE_URL === 'SUA_SUPABASE_URL' || SUPABASE_ANON_KEY === 'SUA_SUPABASE_ANON_KEY') {
-            showCustomAlert('Erro: Insira suas credenciais do Supabase no código JavaScript!', 'error');
+// --- UTILITY FUNCTIONS ---
+const showLoading = (isLoading) => { loadingOverlay.style.display = isLoading ? 'flex' : 'none'; };
+function escapeHTML(str) { if (str === null || str === undefined) return ''; const p = document.createElement('p'); p.textContent = str; return p.innerHTML; }
+function showCustomAlert(message, type = 'success') {
+    const alertContainer = document.getElementById('alertContainer');
+    const alertBox = document.createElement('div');
+    const alertClasses = type === 'error' ? 'bg-red-100 border-red-400 text-red-700' : 'bg-green-100 border-green-400 text-green-700';
+    alertBox.className = `border px-4 py-3 rounded relative ${alertClasses}`;
+    alertBox.innerHTML = `<span>${message}</span><button onclick="this.parentElement.remove()" class="absolute top-0 bottom-0 right-0 px-4 py-3">&times;</button>`;
+    alertContainer.appendChild(alertBox);
+    setTimeout(() => alertBox.remove(), 5000);
+}
+
+
+// --- SIDEBAR & NAVIGATION ---
+const sidebar = document.getElementById('sidebar');
+const menuButton = document.getElementById('menu-button');
+const closeSidebarButton = document.getElementById('close-sidebar');
+const sidebarOverlay = document.getElementById('sidebar-overlay');
+
+menuButton.addEventListener('click', () => {
+    if (window.innerWidth < 768) {
+        sidebar.classList.remove('collapsed');
+        sidebar.classList.add('show');
+        sidebarOverlay.classList.remove('hidden');
+    } else {
+        sidebar.classList.toggle('collapsed');
+        document.querySelector('.main-content').style.marginLeft = sidebar.classList.contains('collapsed') ? 'var(--sidebar-width-collapsed)' : 'var(--sidebar-width)';
+    }
+});
+closeSidebarButton.addEventListener('click', () => {
+    sidebar.classList.remove('show');
+    sidebarOverlay.classList.add('hidden');
+});
+sidebarOverlay.addEventListener('click', () => {
+    sidebar.classList.remove('show');
+    sidebarOverlay.classList.add('hidden');
+});
+
+// --- MODAL HANDLING ---
+function setupModal(modalId, openTriggerId) {
+    const modal = document.getElementById(modalId);
+    const openBtn = document.getElementById(openTriggerId);
+    if (modal && openBtn) {
+        openBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            modal.classList.add('show');
+        });
+    }
+}
+document.body.addEventListener('click', (e) => {
+    if (e.target.dataset.closeModalId) {
+        document.getElementById(e.target.dataset.closeModalId).classList.remove('show');
+    }
+});
+setupModal('modal-settings', 'settings-button');
+setupModal('modal-tutorial', 'show-tutorial');
+setupModal('modalMaquina', 'btnAbrirModalMaquina');
+setupModal('modalMolde', 'btnAbrirModalMolde');
+
+// --- API KEY MANAGEMENT ---
+const apiKeyInput = document.getElementById('gemini-api-key');
+const saveApiKeyBtn = document.getElementById('save-api-key');
+apiKeyInput.value = localStorage.getItem('geminiApiKey') || '';
+saveApiKeyBtn.addEventListener('click', () => {
+    const key = apiKeyInput.value.trim();
+    if (key) {
+        localStorage.setItem('geminiApiKey', key);
+        showCustomAlert('Chave API salva com sucesso!', 'success');
+        document.getElementById('modal-settings').classList.remove('show');
+    } else {
+        showCustomAlert('Por favor, insira uma chave API válida.', 'error');
+    }
+});
+
+// --- CORE LOGIC (Máquinas, Moldes, Status) ---
+async function loadMachineStatusByDate() {
+    const selectedDate = filterDateInput.value;
+    if (!selectedDate) { showCustomAlert("Selecione uma data.", "error"); return; }
+    showLoading(true);
+    machineStatusTableBody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Carregando...</td></tr>';
+    try {
+        const { data, error } = await supabaseClient.from('status_maquinas').select('*').eq('data', selectedDate).order('created_at', { ascending: true });
+        if (error) throw error;
+        machineStatusTableBody.innerHTML = '';
+        if (data && data.length > 0) { data.forEach(record => addMachineRowToTable(record)); }
+        else { machineStatusTableBody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Nenhum registro para esta data.</td></tr>'; }
+    } catch (error) { console.error("Erro ao carregar status:", error); showCustomAlert(`Erro ao carregar: ${error.message}`, "error"); machineStatusTableBody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-red-500">Erro ao carregar.</td></tr>'; }
+    finally { showLoading(false); }
+}
+
+function addMachineRowToTable(record) {
+    const linha = document.createElement('tr');
+    linha.setAttribute('data-id', record.id);
+    linha.innerHTML = `
+        <td class="px-4 py-2 text-sm text-gray-700">${escapeHTML(record.data)}</td>
+        <td class="px-4 py-2 text-sm text-gray-700">${escapeHTML(record.nome_maquina)}</td>
+        <td class="px-4 py-2 text-sm text-gray-700">${escapeHTML(record.molde)}</td>
+        <td class="px-4 py-2 text-sm text-gray-700">${escapeHTML(record.ciclo_padrao)}</td>
+        <td class="px-4 py-2 text-sm text-gray-700">${escapeHTML(record.ciclo_atual)}</td>
+        <td class="px-4 py-2 text-sm text-gray-700 break-words max-w-xs">${escapeHTML(record.observacoes || '')}</td>
+        <td class="px-4 py-2 text-sm text-center whitespace-nowrap"><button onclick="editMachineStatus(this, '${record.id}')" class="edit-button">Editar</button><button onclick="removeMachineStatus(this, '${record.id}')" class="remove-button">Remover</button></td>`;
+    machineStatusTableBody.appendChild(linha);
+}
+
+function editMachineStatus(button, recordId) {
+    const row = button.closest('tr');
+    const cells = row.cells;
+    dataInput.value = cells[0].textContent;
+    maquinaSelect.value = cells[1].textContent;
+    moldeSelect.value = cells[2].textContent;
+    cicloPadraoInput.value = cells[3].textContent;
+    cicloAtualInput.value = cells[4].textContent;
+    obsInput.value = cells[5].textContent;
+    editingRecordIdInput.value = recordId;
+    submitButton.textContent = 'Salvar Alterações';
+    submitButton.classList.replace('btn-add', 'btn-update');
+    cancelEditButton.classList.remove('hidden');
+    form.scrollIntoView({ behavior: 'smooth' });
+}
+
+function cancelEdit() {
+    form.reset();
+    editingRecordIdInput.value = '';
+    submitButton.textContent = 'Salvar Novo Status';
+    submitButton.classList.replace('btn-update', 'btn-add');
+    cancelEditButton.classList.add('hidden');
+    dataInput.value = new Date().toISOString().split('T')[0];
+}
+
+async function handleFormSubmit(event) {
+    event.preventDefault();
+    const editingId = editingRecordIdInput.value;
+    const recordData = { data: dataInput.value, nome_maquina: maquinaSelect.value, molde: moldeSelect.value, ciclo_padrao: cicloPadraoInput.value, ciclo_atual: cicloAtualInput.value, observacoes: obsInput.value.trim() || null };
+    if (!recordData.data || !recordData.nome_maquina || !recordData.molde || !recordData.ciclo_padrao || !recordData.ciclo_atual) {
+        showCustomAlert('Preencha todos os campos obrigatórios.', 'error');
+        return;
+    }
+    showLoading(true);
+    try {
+        let error;
+        if (editingId) {
+            ({ error } = await supabaseClient.from('status_maquinas').update(recordData).eq('id', editingId));
+            if (!error) { showCustomAlert('Registro atualizado!', 'success'); await loadMachineStatusByDate(); cancelEdit(); }
+        } else {
+            const { data, error: insertError } = await supabaseClient.from('status_maquinas').insert([recordData]).select().single();
+            error = insertError;
+            if (!error) { showCustomAlert('Novo status salvo!', 'success'); if (data.data === filterDateInput.value) addMachineRowToTable(data); cancelEdit(); }
         }
-        const { createClient } = supabase;
-        const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        if (error) throw error;
+    } catch (err) { console.error('Erro ao salvar:', err); showCustomAlert(`Erro ao salvar: ${err.message}`, 'error'); }
+    finally { showLoading(false); }
+}
 
-        // --- Referências aos Elementos do DOM ---
-        const dashboardDateInput = document.getElementById('dashboardDate');
-        const loadingSpinner = document.getElementById('loadingSpinner');
-        // Resumo Absenteísmo
-        const summaryPresentesEl = document.getElementById('summaryPresentes');
-        const summaryFaltasJustifEl = document.getElementById('summaryFaltasJustif');
-        const summaryFaltasNaoJustifEl = document.getElementById('summaryFaltasNaoJustif');
-        const summaryOutrosEl = document.getElementById('summaryOutros');
-        // Gráfico Absenteísmo
-        const attendanceChartCanvas = document.getElementById('attendancePieChart');
-        // Tabela Máquinas
-        const machineStatusTableBody = document.getElementById('machineStatusTableBody');
-
-        // --- Variável Global para o Gráfico ---
-        let attendancePieChartInstance = null;
-
-        // --- Funções Principais ---
-
-        /** Carrega todos os dados da dashboard para a data selecionada */
-        async function loadDashboardData(selectedDate) {
-            if (!selectedDate) {
-                // Limpa a dashboard se nenhuma data for selecionada
-                clearDashboard();
-                return;
-            }
-            showLoading(true);
-            clearDashboard(); // Limpa antes de carregar
-
-            try {
-                // Busca dados de absenteísmo e status de máquinas em paralelo
-                const [attendanceResponse, machineResponse] = await Promise.all([
-                    supabaseClient
-                        .from('registros_presenca')
-                        .select('status') // Seleciona apenas a coluna status
-                        .eq('data', selectedDate),
-                    supabaseClient
-                        .from('status_maquinas')
-                        .select('*') // Seleciona todas as colunas
-                        .eq('data', selectedDate)
-                        .order('nome_maquina', { ascending: true }) // Ordena por nome da máquina
-                ]);
-
-                // Processa Absenteísmo
-                if (attendanceResponse.error) throw attendanceResponse.error;
-                processAttendanceData(attendanceResponse.data || []);
-
-                // Processa Status das Máquinas
-                if (machineResponse.error) throw machineResponse.error;
-                processMachineData(machineResponse.data || []);
-
-            } catch (error) {
-                console.error("Erro ao carregar dados da dashboard:", error);
-                showCustomAlert(`Erro ao carregar dados: ${error.message}`, 'error');
-                // Limpa novamente em caso de erro
-                clearDashboard(true); // Passa true para mostrar mensagem de erro nas tabelas
-            } finally {
-                showLoading(false);
-            }
+async function removeMachineStatus(button, recordId) {
+    if (!confirm('Tem certeza que deseja remover este registro?')) return;
+    showLoading(true);
+    try {
+        const { error } = await supabaseClient.from('status_maquinas').delete().eq('id', recordId);
+        if (error) throw error;
+        showCustomAlert('Registro removido!', 'success');
+        button.closest('tr').remove();
+        if (machineStatusTableBody.rows.length === 0) {
+            machineStatusTableBody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Nenhum registro para esta data.</td></tr>';
         }
+    } catch (error) { showCustomAlert(`Erro: ${error.message}`, 'error'); }
+    finally { showLoading(false); }
+}
 
-        /** Processa os dados de absenteísmo e atualiza o resumo/gráfico */
-        function processAttendanceData(data) {
-            const counts = { Presente: 0, 'Falta Justificada': 0, 'Falta Não Justificada': 0, Outros: 0 };
-            const otherStatus = ['Férias', 'Licença Médica', 'Home Office', 'Outro'];
-
-            data.forEach(record => {
-                if (record.status === 'Presente') {
-                    counts.Presente++;
-                } else if (record.status === 'Falta Justificada') {
-                    counts['Falta Justificada']++;
-                } else if (record.status === 'Falta Não Justificada') {
-                    counts['Falta Não Justificada']++;
-                } else if (otherStatus.includes(record.status)) {
-                    counts.Outros++;
-                }
-                // Ignora status não mapeados se houver
+async function loadMaquinas() {
+    const listaMaquinasContainer = document.getElementById('listaMaquinas');
+    try {
+        const { data, error } = await supabaseClient.from('maquinas_cadastradas').select('id, nome_maquina').order('nome_maquina');
+        if (error) throw error;
+        maquinaSelect.innerHTML = '<option value="">Selecione uma máquina</option>';
+        data.forEach(m => maquinaSelect.add(new Option(m.nome_maquina, m.nome_maquina)));
+        if (listaMaquinasContainer) {
+            listaMaquinasContainer.innerHTML = data.length === 0 ? '<p class="text-gray-500">Nenhuma máquina cadastrada.</p>' : '';
+            data.forEach(m => {
+                const div = document.createElement('div');
+                div.className = 'flex justify-between items-center p-2 bg-gray-50 rounded mb-2';
+                div.innerHTML = `<span>${escapeHTML(m.nome_maquina)}</span><button onclick="deleteMaquina(${m.id})" class="action-button btn-danger px-2 py-1 text-xs">Excluir</button>`;
+                listaMaquinasContainer.appendChild(div);
             });
-
-            // Atualiza Cards
-            summaryPresentesEl.textContent = counts.Presente;
-            summaryFaltasJustifEl.textContent = counts['Falta Justificada'];
-            summaryFaltasNaoJustifEl.textContent = counts['Falta Não Justificada'];
-            summaryOutrosEl.textContent = counts.Outros;
-
-            // Atualiza Gráfico
-            renderAttendancePieChart(counts);
         }
+    } catch (error) { console.error("Erro ao carregar máquinas:", error); showCustomAlert('Erro ao carregar máquinas.', 'error'); }
+}
 
-        /** Processa os dados de status das máquinas e atualiza a tabela */
-        function processMachineData(data) {
-            machineStatusTableBody.innerHTML = ''; // Limpa tabela
+async function deleteMaquina(id) {
+    if (!confirm('Tem certeza?')) return;
+    showLoading(true);
+    try {
+        const { error } = await supabaseClient.from('maquinas_cadastradas').delete().eq('id', id);
+        if (error) throw error;
+        showCustomAlert('Máquina excluída!', 'success');
+        await loadMaquinas();
+    } catch (error) { showCustomAlert(`Erro: ${error.message}`, 'error'); }
+    finally { showLoading(false); }
+}
 
-            if (data.length === 0) {
-                machineStatusTableBody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">Nenhum status de máquina registrado para esta data.</td></tr>';
-                return;
-            }
-
-            data.forEach(record => {
-                const row = machineStatusTableBody.insertRow();
-                row.innerHTML = `
-                    <td class="px-4 py-2 text-sm text-gray-700">${escapeHTML(record.nome_maquina)}</td>
-                    <td class="px-4 py-2 text-sm text-gray-700">${escapeHTML(record.molde)}</td>
-                    <td class="px-4 py-2 text-sm text-gray-700">${escapeHTML(record.ciclo_padrao)}</td>
-                    <td class="px-4 py-2 text-sm text-gray-700">${escapeHTML(record.ciclo_atual)}</td>
-                    <td class="px-4 py-2 text-sm text-gray-700 break-words max-w-xs">${escapeHTML(record.observacoes || '')}</td>
-                `;
+async function loadMoldes() {
+    const listaMoldesContainer = document.getElementById('listaMoldes');
+    try {
+        const { data, error } = await supabaseClient.from('moldes_cadastrados').select('id, nome_molde').order('nome_molde');
+        if (error) throw error;
+        moldeSelect.innerHTML = '<option value="">Selecione um molde</option>';
+        data.forEach(m => moldeSelect.add(new Option(m.nome_molde, m.nome_molde)));
+        if (listaMoldesContainer) {
+            listaMoldesContainer.innerHTML = data.length === 0 ? '<p class="text-gray-500">Nenhum molde cadastrado.</p>' : '';
+            data.forEach(m => {
+                const div = document.createElement('div');
+                div.className = 'flex justify-between items-center p-2 bg-gray-50 rounded mb-2';
+                div.innerHTML = `<span>${escapeHTML(m.nome_molde)}</span><button onclick="deleteMolde(${m.id})" class="action-button btn-danger px-2 py-1 text-xs">Excluir</button>`;
+                listaMoldesContainer.appendChild(div);
             });
         }
+    } catch (error) { console.error("Erro ao carregar moldes:", error); showCustomAlert('Erro ao carregar moldes.', 'error'); }
+}
 
-        /** Renderiza ou atualiza o gráfico de pizza de absenteísmo */
-        function renderAttendancePieChart(counts) {
-            const ctx = attendanceChartCanvas.getContext('2d');
-            const labels = ['Presentes', 'Faltas Justif.', 'Faltas Não Justif.', 'Outros'];
-            const dataValues = [
-                counts.Presente,
-                counts['Falta Justificada'],
-                counts['Falta Não Justificada'],
-                counts.Outros
-            ];
+async function deleteMolde(id) {
+    if (!confirm('Tem certeza?')) return;
+    showLoading(true);
+    try {
+        const { error } = await supabaseClient.from('moldes_cadastrados').delete().eq('id', id);
+        if (error) throw error;
+        showCustomAlert('Molde excluído!', 'success');
+        await loadMoldes();
+    } catch (error) { showCustomAlert(`Erro: ${error.message}`, 'error'); }
+    finally { showLoading(false); }
+}
 
-            // Cores para o gráfico de pizza
-            const backgroundColors = [
-                'rgba(75, 192, 192, 0.7)',  // Presente (Verde-azulado)
-                'rgba(255, 205, 86, 0.7)',  // Falta Justificada (Amarelo)
-                'rgba(255, 99, 132, 0.7)',   // Falta Não Justificada (Vermelho)
-                'rgba(153, 102, 255, 0.7)'  // Outros (Roxo)
-            ];
-            const borderColors = backgroundColors.map(color => color.replace('0.7', '1'));
+// --- EXPORT & GENERATE FUNCTIONS ---
+async function handleAnimatedExport(buttonElement, exportLogic) {
+    if (buttonElement.classList.contains('onclic') || buttonElement.classList.contains('validate')) {
+        return;
+    }
+    buttonElement.classList.add('onclic');
+    try {
+        await exportLogic();
+        buttonElement.classList.remove('onclic');
+        buttonElement.classList.add('validate');
+        setTimeout(() => {
+            buttonElement.classList.remove('validate');
+        }, 2500);
+    } catch (error) {
+        console.error("Export failed:", error);
+        showCustomAlert(error.message || "Falha na exportação.", "error");
+        buttonElement.classList.remove('onclic');
+    }
+}
 
-            // Destrói gráfico anterior
-            if (attendancePieChartInstance) {
-                attendancePieChartInstance.destroy();
+function gerarImagem() {
+    return new Promise(async (resolve, reject) => {
+        const captureElement = document.getElementById("captureArea");
+        const imagemContainer = document.getElementById("imagemTabela");
+        const tabelaElement = captureElement.querySelector("#tabela");
+
+        if (!tabelaElement) {
+            return reject(new Error("Tabela não encontrada."));
+        }
+        
+        const actionsHeader = tabelaElement.querySelector("th:last-child");
+        const actionsCells = tabelaElement.querySelectorAll("td:last-child");
+
+        if (actionsHeader) actionsHeader.style.display = 'none';
+        actionsCells.forEach(cell => { cell.style.display = 'none'; });
+
+        imagemContainer.innerHTML = '';
+        downloadContainer.classList.add('hidden');
+        const originalOverflow = captureElement.style.overflowX;
+        captureElement.style.overflowX = 'visible';
+
+        try {
+            const canvas = await html2canvas(tabelaElement, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+            generatedImageUrl = canvas.toDataURL("image/png");
+            
+            imagemContainer.innerHTML = '';
+            canvas.style.maxWidth = '100%';
+            canvas.style.borderRadius = '0.375rem';
+            imagemContainer.appendChild(canvas);
+            
+            downloadContainer.classList.remove('hidden');
+            resolve();
+        } catch (error) {
+            imagemContainer.innerHTML = '<p class="text-red-500">Erro ao gerar imagem.</p>';
+            reject(error);
+        } finally {
+            if (actionsHeader) actionsHeader.style.display = '';
+            actionsCells.forEach(cell => { cell.style.display = ''; });
+            captureElement.style.overflowX = originalOverflow;
+        }
+    });
+}
+
+function downloadGeneratedImage() {
+    if (generatedImageUrl) {
+        const link = document.createElement("a");
+        link.href = generatedImageUrl;
+        link.download = `status-maquinas-${filterDateInput.value}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } else {
+        showCustomAlert("Nenhuma imagem gerada para baixar.", "error");
+    }
+}
+
+function exportarTabelaTXT() {
+    return new Promise((resolve, reject) => {
+        const rows = document.querySelectorAll("#machineStatusTableBody tr");
+        if (rows.length === 0 || (rows.length === 1 && rows[0].cells.length <= 1)) {
+            return reject(new Error("Não há dados na tabela para exportar."));
+        }
+        
+        let textContent = `RELATÓRIO DE STATUS DE MÁQUINAS - 2º TURNO\nDATA: ${filterDateInput.value}\n\n`;
+        rows.forEach((row, index) => {
+            const cells = row.querySelectorAll("td");
+            textContent += `Registro ${index + 1}: Máquina: ${cells[1].innerText}, Molde: ${cells[2].innerText}, Ciclo Padrão: ${cells[3].innerText}s, Ciclo Atual: ${cells[4].innerText}s, Obs: ${cells[5].innerText || 'N/A'}\n`;
+        });
+        const blob = new Blob([textContent], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `status-maquinas-${filterDateInput.value}.txt`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        resolve();
+    });
+}
+
+function exportarTabelaPDF() {
+     return new Promise((resolve, reject) => {
+        const rows = document.querySelectorAll("#machineStatusTableBody tr");
+        if (rows.length === 0 || (rows.length === 1 && rows[0].cells.length <= 1)) {
+            return reject(new Error("Não há dados na tabela para exportar."));
+        }
+        
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        const tableToExport = document.getElementById('tabela').cloneNode(true);
+        tableToExport.querySelector("thead tr th:last-child").remove();
+        tableToExport.querySelectorAll("tbody tr").forEach(row => { row.querySelector("td:last-child").remove(); });
+        
+        doc.autoTable({
+            html: tableToExport,
+            startY: 20,
+            theme: 'grid',
+            headStyles: { fillColor: [158, 25, 33] },
+            didDrawPage: function (data) {
+                doc.setFontSize(18);
+                doc.setTextColor(40);
+                doc.text(`Relatório de Status - ${filterDateInput.value}`, data.settings.margin.left, 15);
             }
-
-            // Cria novo gráfico
-            attendancePieChartInstance = new Chart(ctx, {
-                type: 'pie', // Tipo Pizza
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Distribuição de Status',
-                        data: dataValues,
-                        backgroundColor: backgroundColors,
-                        borderColor: borderColors,
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom', // Posição da legenda
-                        },
-                        title: {
-                            display: true,
-                            text: 'Distribuição de Status de Funcionários no Dia',
-                            font: { size: 14 }
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    let label = context.label || '';
-                                    if (label) {
-                                        label += ': ';
-                                    }
-                                    if (context.parsed !== null) {
-                                        label += context.parsed;
-                                    }
-                                    return label;
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
-        /** Limpa os dados da dashboard */
-        function clearDashboard(showErrorMsg = false) {
-            // Limpa cards
-            summaryPresentesEl.textContent = '0';
-            summaryFaltasJustifEl.textContent = '0';
-            summaryFaltasNaoJustifEl.textContent = '0';
-            summaryOutrosEl.textContent = '0';
-            // Limpa gráfico
-            if (attendancePieChartInstance) {
-                attendancePieChartInstance.destroy();
-                attendancePieChartInstance = null;
-            }
-            // Limpa tabela de máquinas
-            const initialMachineMsg = showErrorMsg
-                ? '<tr><td colspan="5" class="text-center py-4 text-red-500">Erro ao carregar dados das máquinas.</td></tr>'
-                : '<tr><td colspan="5" class="text-center py-4 text-gray-500">Selecione uma data para ver o status.</td></tr>';
-            machineStatusTableBody.innerHTML = initialMachineMsg;
-        }
-
-
-        // --- Funções Auxiliares ---
-        function showLoading(isLoading) { loadingSpinner.style.display = isLoading ? 'block' : 'none'; }
-        function showCustomAlert(message, type = 'error') { // Padrão para erro na dashboard
-            const existingAlert = document.getElementById('customAlert'); if (existingAlert) existingAlert.remove();
-            const alertBox = document.createElement('div'); alertBox.id = 'customAlert'; alertBox.className = type === 'error' ? 'alert-error' : 'alert-success';
-            const alertText = document.createElement('span'); alertText.textContent = message; const closeButton = document.createElement('button'); closeButton.innerHTML = '&times;'; closeButton.onclick = () => alertBox.remove();
-            alertBox.appendChild(alertText); alertBox.appendChild(closeButton); document.body.appendChild(alertBox); setTimeout(() => alertBox.remove(), 5000);
-        }
-        function escapeHTML(str) { if (str === null || str === undefined) return ''; const div = document.createElement('div'); div.textContent = str; return div.innerHTML; }
-
-        // --- Inicialização e Event Listeners ---
-        document.addEventListener('DOMContentLoaded', () => {
-            // Define a data padrão para hoje
-            const today = new Date().toISOString().split('T')[0];
-            dashboardDateInput.value = today;
-            // Carrega os dados para a data de hoje
-            loadDashboardData(today);
         });
 
-        // Listener para mudança na data
-        dashboardDateInput.addEventListener('change', (event) => {
-            loadDashboardData(event.target.value);
+        doc.save(`status-maquinas-${filterDateInput.value}.pdf`);
+        resolve();
+    });
+}
+
+// --- GEMINI SUGGESTION ---
+async function sugerirObservacao() {
+    const maquina = maquinaSelect.value;
+    const molde = moldeSelect.value;
+    const cicloPadrao = parseFloat(cicloPadraoInput.value);
+    const cicloAtual = parseFloat(cicloAtualInput.value);
+
+    if (!maquina || !molde || isNaN(cicloPadrao) || isNaN(cicloAtual)) {
+        showCustomAlert("Preencha os campos de máquina, molde e ciclos para obter uma sugestão.", "error");
+        return;
+    }
+
+    const apiKey = localStorage.getItem('geminiApiKey');
+    if (!apiKey) {
+        showCustomAlert('Chave API do Gemini não encontrada. Por favor, salve sua chave nas Configurações.', 'error');
+        return;
+    }
+
+    const diferenca = cicloAtual - cicloPadrao;
+    const tipoVariacao = diferenca > 0.1 ? "acima do padrão" : (diferenca < -0.1 ? "abaixo do padrão" : "dentro do padrão");
+
+    if (tipoVariacao === "dentro do padrão") {
+        showCustomAlert('O ciclo está dentro do padrão. Nenhuma sugestão necessária.', 'success');
+        return;
+    }
+
+    const prompt = `Como um especialista em processos de injeção plástica, o ciclo da máquina ${maquina} com o molde ${molde} está ${Math.abs(diferenca).toFixed(2)}s ${tipoVariacao} (Padrão: ${cicloPadrao}s, Atual: ${cicloAtual}s). Liste, em formato de checklist com hífens, 3 a 4 possíveis causas técnicas que um operador deve verificar. Seja conciso e direto.`;
+
+    const originalIcon = sugestaoIaBtn.innerHTML;
+    sugestaoIaBtn.innerHTML = `<svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
+    sugestaoIaBtn.disabled = true;
+
+    try {
+        const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
         });
 
-    </script>
+        if (!response.ok) {
+            const errorBody = await response.json();
+            throw new Error(`HTTP error! status: ${response.status} - ${errorBody.error.message}`);
+        }
+
+        const result = await response.json();
+        if (result.candidates && result.candidates.length > 0) {
+            const text = result.candidates[0].content.parts[0].text;
+            const cleanedText = text.replace(/^- /gm, '').replace(/\*\*/g, '');
+            obsInput.value = cleanedText;
+            showCustomAlert('Sugestão gerada com sucesso!', 'success');
+        } else {
+            throw new Error("Resposta da API inválida ou sem conteúdo.");
+        }
+    } catch (error) {
+        console.error('Erro ao chamar a API Gemini:', error);
+        showCustomAlert(`Erro ao gerar sugestão: ${error.message}`, 'error');
+    } finally {
+        sugestaoIaBtn.innerHTML = originalIcon;
+        sugestaoIaBtn.disabled = false;
+    }
+}
+
+
+// --- INITIALIZATION ---
+document.addEventListener('DOMContentLoaded', () => {
+    const today = new Date().toISOString().split('T')[0];
+    if (filterDateInput) filterDateInput.value = today;
+    if (dataInput) dataInput.value = today;
+    
+    showLoading(true);
+    Promise.all([loadMaquinas(), loadMoldes()]).then(() => {
+        loadMachineStatusByDate();
+        showLoading(false);
+    });
+
+    const formMaquina = document.getElementById('formMaquina');
+    formMaquina.addEventListener('submit', async (e) => { e.preventDefault(); const nome = document.getElementById('nomeMaquina').value.trim(); if (!nome) return; showLoading(true); try { const { error } = await supabaseClient.from('maquinas_cadastradas').insert([{ nome_maquina: nome }]); if (error) throw error; showCustomAlert('Máquina adicionada!', 'success'); document.getElementById('nomeMaquina').value = ''; await loadMaquinas(); } catch (error) { showCustomAlert(`Erro: ${error.message}`, 'error'); } finally { showLoading(false); } });
+    
+    const formMolde = document.getElementById('formMolde');
+    formMolde.addEventListener('submit', async (e) => { e.preventDefault(); const nome = document.getElementById('nomeMolde').value.trim(); if (!nome) return; showLoading(true); try { const { error } = await supabaseClient.from('moldes_cadastrados').insert([{ nome_molde: nome }]); if (error) throw error; showCustomAlert('Molde adicionado!', 'success'); document.getElementById('nomeMolde').value = ''; await loadMoldes(); } catch (error) { showCustomAlert(`Erro: ${error.message}`, 'error'); } finally { showLoading(false); } });
+
+    form.addEventListener('submit', handleFormSubmit);
+    
+    // Attach animated export listeners
+    document.getElementById('generate-image-btn').addEventListener('click', function() { handleAnimatedExport(this, gerarImagem); });
+    document.getElementById('export-txt-btn').addEventListener('click', function() { handleAnimatedExport(this, exportarTabelaTXT); });
+    document.getElementById('export-pdf-btn').addEventListener('click', function() { handleAnimatedExport(this, exportarTabelaPDF); });
+    if(downloadImageBtn) {
+        downloadImageBtn.addEventListener('click', downloadGeneratedImage);
+    }
+    if (sugestaoIaBtn) {
+        sugestaoIaBtn.addEventListener('click', sugerirObservacao);
+    }
+});
+</script>
 </body>
 </html>
