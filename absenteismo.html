@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Absenteísmo - CDM-MB</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    <style>
+        :root { --sidebar-width: 250px; --sidebar-width-collapsed: 80px; }
+        body { background-color: #f3f4f6; font-family: 'Inter', sans-serif; }
+        .main-content { transition: margin-left 0.3s ease; margin-left: var(--sidebar-width-collapsed); }
+        .sidebar { width: var(--sidebar-width); transition: width 0.3s ease, transform 0.3s ease; }
+        .sidebar.collapsed { width: var(--sidebar-width-collapsed); }
+        .sidebar.collapsed .nav-text, .sidebar.collapsed .long-title { display: none; }
+        @media (max-width: 768px) {
+            .main-content { margin-left: 0; }
+            .sidebar { transform: translateX(-100%); width: var(--sidebar-width); }
+            .sidebar.show { transform: translateX(0); }
+            .sidebar.show .nav-text, .sidebar.show .long-title { display: inline; }
+            .sidebar.collapsed { width: var(--sidebar-width); }
+        }
+
+        /* Botões e Inputs */
+        .action-button { padding: 0.6rem 1rem; border-radius: 0.375rem; font-weight: 600; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; }
+        .form-input, .form-select { padding: 0.6rem 0.75rem; border: 1px solid #d1d5db; border-radius: 0.375rem; box-sizing: border-box; font-size: 0.875rem; width: 100%; background-color: white; }
+        .btn-primary { background-color: #4f46e5; color: white; } .btn-primary:hover { background-color: #4338ca; }
+        .btn-secondary { background-color: #6b7280; color: white; } .btn-secondary:hover { background-color: #4b5563; }
+        .btn-blue { background-color: #3b82f6; color: white; } .btn-blue:hover { background-color: #2563eb; }
+        .btn-green { background-color: #10b981; color: white; } .btn-green:hover { background-color: #059669; }
+        .btn-red { background-color: #ef4444; color: white; } .btn-red:hover { background-color: #dc2626; }
+        .btn-gray { background-color: #4b5563; color: white; } .btn-gray:hover { background-color: #374151; }
+        .control-button { padding: 0.375rem 0.75rem; border: 1px solid #d1d5db; border-radius: 0.375rem; background-color: white; color: #4b5563; font-size: 0.875rem; transition: all 0.2s; display: inline-flex; align-items: center; }
+        .control-button:hover { background-color: #f3f4f6; }
+        .control-button.active { background-color: #4f46e5; color: white; border-color: #4f46e5; }
+        .action-button:disabled { background-color: #9ca3af; cursor: not-allowed; }
+        
+        /* Modals e Alertas */
+        .modal-overlay { position: fixed; inset: 0; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1050; opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s; }
+        .modal-overlay.show { opacity: 1; visibility: visible; }
+        .modal-content { background-color: white; padding: 1.5rem 2rem; border-radius: 0.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); width: 90%; max-width: 500px; transform: scale(0.95); transition: transform 0.3s; }
+        .modal-overlay.show .modal-content { transform: scale(1); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.75rem; margin-bottom: 1rem; }
+        .modal-title { font-size: 1.25rem; font-weight: 600; color: #1f2937; }
+        .modal-close-button { background: none; border: none; font-size: 1.5rem; line-height: 1; cursor: pointer; color: #9ca3af; } .modal-close-button:hover{color: #4b5563;}
+        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); color: white; padding: 10px 20px; border-radius: 5px; z-index: 1000; opacity: 0; transition: opacity 0.5s ease-in-out; width: 90%; max-width: 400px; text-align: center; }
+        .toast.show { opacity: 1; }
+
+        /* Loading Spinner */
+        #loadingOverlay { display: none; position: fixed; inset: 0; background-color: rgba(255, 255, 255, 0.7); z-index: 9999; }
+        #loadingSpinner { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); border: 5px solid #f3f3f3; border-top: 5px solid #4f46e5; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: translate(-50%, -50%) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg); } }
+
+        /* Seções e Impressão */
+        .section-hidden { display: none !important; }
+        .print-only { display: none; }
+        .capture-visible { display: block !important; }
+        @media print {
+            body { background-color: #fff !important; }
+            body > *:not(.printable-content) { display: none; }
+            .printable-content, .printable-content * { visibility: visible; }
+            .printable-content { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 1cm; }
+            @page { size: landscape; margin: 0; }
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+        }
+        #printableAreaFooter { display: none; }
+
+        /* KPI Cards e Gráficos */
+        .kpi-card { background-color: white; border-radius: 0.5rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); padding: 1.5rem; text-align: center; }
+        .kpi-card-title { font-size: 0.875rem; color: #6b7280; margin-bottom: 0.5rem; }
+        .kpi-card-value { font-size: 2.25rem; font-weight: 700; color: #1f2937; }
+        .chart-container { background-color: white; border-radius: 0.5rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); padding: 1.5rem; height: 350px; }
+
+    </style>
+</head>
+<body class="bg-gray-200">
+    <div id="loadingOverlay"><div id="loadingSpinner"></div></div>
+    <div id="alertContainer" class="fixed top-20 left-1/2 -translate-x-1/2 z-[1060] w-max max-w-[90%]"></div>
+    <div id="toast" class="toast">Mensagem</div>
+
+    <!-- SIDEBAR -->
+    <aside id="sidebar" class="sidebar bg-gray-800 text-white h-screen fixed top-0 left-0 z-40 flex flex-col collapsed">
+        <div class="p-4 flex items-center justify-between h-16 border-b border-gray-700">
+            <h1 class="text-2xl font-bold whitespace-nowrap overflow-hidden"><span class="long-title">CDM - MB</span></h1>
+            <button id="close-sidebar" class="text-gray-400 hover:text-white md:hidden text-3xl leading-none">&times;</button>
+        </div>
+        <nav class="flex-grow p-2 overflow-y-auto">
+            <ul>
+                <li><a href="index.html" class="flex items-center p-3 my-1 rounded-lg hover:bg-gray-700" title="Lançamento Diário"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><span class="ml-4 nav-text">Lançamento Diário</span></a></li>
+                <li><a href="#" class="flex items-center p-3 my-1 rounded-lg bg-gray-900" title="Absenteísmo"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.653-.225-1.26-.623-1.741M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 0c-2.21 0-4 2.24-4 5v2h8v-2c0-2.76-1.79-5-4-5z"></path></svg><span class="ml-4 nav-text">Absenteísmo</span></a></li>
+                <li><a href="dashboard.html" class="flex items-center p-3 my-1 rounded-lg hover:bg-gray-700" title="Dashboard"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg><span class="ml-4 nav-text">Dashboard</span></a></li>
+            </ul>
+        </nav>
+        <div class="p-2 border-t border-gray-700">
+            <a href="#" id="settings-button" class="flex items-center p-3 rounded-lg hover:bg-gray-700" title="Configurações"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.096 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg><span class="ml-4 nav-text">Configurações</span></a>
+        </div>
+    </aside>
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden md:hidden"></div>
+
+    <!-- MAIN CONTENT WRAPPER -->
+    <div class="main-content">
+        <!-- HEADER -->
+        <header class="bg-white shadow-md sticky top-0 z-20 h-16 flex items-center px-6">
+            <button id="menu-button" class="p-2 text-gray-500 rounded-md -ml-2 mr-2"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg></button>
+            <h1 class="text-xl font-semibold text-gray-800"><span class="hidden sm:inline">Ciclos Diários de Máquinas - MB</span><span class="sm:hidden">CDM - MB</span></h1>
+        </header>
+
+        <!-- PAGE CONTENT -->
+        <main class="p-4 sm:p-6 lg:p-8">
+            <div class="bg-white p-4 sm:p-6 rounded-lg shadow-md">
+                <h1 class="text-xl sm:text-2xl font-bold text-center mb-4 text-gray-800">CONTROLE DE ABSENTEÍSMO</h1>
+                <nav id="sub-nav" class="flex flex-wrap justify-center gap-2 sm:space-x-4">
+                    <button id="navRegistrarPresencas" class="action-button btn-blue"><i data-lucide="clipboard-list" class="mr-2"></i>Registrar Presenças</button>
+                    <button id="navAlocacao" class="action-button btn-secondary"><i data-lucide="monitor-dot" class="mr-2"></i>Alocação Diária</button>
+                    <button id="navHorariosPausa" class="action-button btn-secondary"><i data-lucide="clock" class="mr-2"></i>Horários de Pausa</button>
+                    <button id="navDashboard" class="action-button btn-secondary"><i data-lucide="layout-dashboard" class="mr-2"></i>Dashboard</button>
+                </nav>
+            </div>
+            
+            <div class="mt-6">
+                <section id="sectionRegistrarPresencas" class="space-y-6"></section>
+                <section id="sectionAlocacaoDiaria" class="section-hidden printable-content"></section>
+                <section id="sectionHorariosPausa" class="section-hidden printable-content"></section>
+                <section id="sectionDashboard" class="section-hidden"></section>
+            </div>
+        </main>
+    </div>
+
+    <!-- MODALS -->
+    <div id="modal-settings" class="modal-overlay"><div class="modal-content max-w-lg"><div class="modal-header"><h2 class="modal-title">Configurações</h2><button class="modal-close-button" data-close-modal-id="modal-settings">&times;</button></div><div><label for="gemini-api-key" class="block text-sm font-medium text-gray-700 mb-1">Sua Chave API Google Gemini</label><input type="password" id="gemini-api-key" class="w-full p-2 border rounded-md mb-2" placeholder="Cole sua chave aqui"><button id="save-api-key" class="action-button btn-primary w-full mb-4">Salvar Chave</button><div class="text-center"><button id="show-tutorial" class="text-indigo-600 hover:underline text-sm">Como Obter Chave API?</button></div></div></div></div>
+    <div id="modal-tutorial" class="modal-overlay"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Como Obter sua Chave API do Google Gemini</h2><button class="modal-close-button" data-close-modal-id="modal-tutorial">&times;</button></div><div class="prose max-w-none text-gray-700"><p>Para utilizar todas as funcionalidades de análise por IA, você precisará de uma Chave API do Google Gemini. O Gemini 1.5 Flash, que é necessária, oferece um nível gratuito generoso.</p><h4>Passo 1: Acesse o Google AI Studio</h4><p>Se você ainda não tem uma conta Google, precisará criar uma. Depois, acesse o Google AI Studio:</p><a href="https://aistudio.google.com/app/apikey" target="_blank" class="action-button btn-primary">Ir para o Google AI Studio &rarr;</a><h4 class="mt-4">Passo 2: Gere sua Chave API</h4><ul><li>Procure pela opção "Get API key" ou "Criar chave API".</li><li>Clique em "Create API key in new project".</li><li>Siga as instruções para nomear seu projeto, se necessário.</li><li>Após a criação, sua chave API será exibida.</li></ul><h4>Passo 3: Copie e Cole sua Chave API</h4><ul><li>Clique no botão para copiar sua chave API.</li><li>Volte para esta página (dentro do modal de Configurações).</li><li>Cole a chave no campo "Sua Chave API Google Gemini".</li><li>Clique em "Salvar".</li></ul><p class="font-semibold mt-4">Importante: Guarde sua chave API em um local seguro e não a compartilhe publicamente.</p></div><div class="mt-6 text-center"><button class="action-button btn-secondary" data-close-modal-id="modal-tutorial">Entendi - Fechar Tutorial</button></div></div></div>
+    <div id="employeeModal" class="modal-overlay"></div>
+    <div id="modal-absent-ai" class="modal-overlay"><div class="modal-content max-w-2xl"><div class="modal-header"><h2 class="modal-title">✨ Análise de Absenteísmo</h2><button class="modal-close-button" data-close-modal-id="modal-absent-ai">&times;</button></div><div id="absent-ai-result-content" class="prose max-w-none max-h-[60vh] overflow-y-auto text-gray-700"></div><div id="absent-ai-export-buttons" class="mt-4 pt-4 border-t flex justify-end gap-3 hidden"><button onclick="exportarAnaliseAbsenteismoTXT()" class="action-button btn-secondary">Exportar TXT</button><button onclick="exportarAnaliseAbsenteismoPDF()" class="action-button btn-red">Exportar PDF</button></div></div></div>
+
+<script>
+// --- SUPABASE CLIENT ---
+const SUPABASE_URL = 'https://ranhhacbgyfpzrjdynnd.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJhbmhoYWNiZ3lmcHpyamR5bm5kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM5MDU4OTEsImV4cCI6MjA1OTQ4MTg5MX0.Ey-X4Tz8krKHSICnYdHdBaI3q5WcRgUVwA8jOhfMr7Y';
+const sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// --- GLOBAL VARIABLES ---
+let attendanceDateInput, toastElement, employeeModal, openAddEmployeeModalBtn,
+    openAddEmployeeModalBtnSecondary, closeEmployeeModalBtn, employeeForm,
+    employeeModalTitle, employeeIdInput, employeeNameInput, employeeTypeSelect,
+    horarioPausaField, horarioPausaHelpText, employeeBreakTimeBaseSelect,
+    trocadorResponsavelField, employeeTrocadorSelect, attendanceEmployeeSelect,
+    attendanceStatusSelect, registerAttendanceBtn, employeeSummaryContainer,
+    viewModeListBtn, viewModeGalleryBtn, sortAZBtn, sortZABtn,
+    scheduleDateDisplayPausa, scheduleDateDisplayForTitle, printableAreaHeader,
+    breakScheduleTable, breakScheduleTableBody, exportPdfBtn, exportPngBtn,
+    printScheduleBtn, printableAreaFooter, navButtons, sections, analyzeAbsenceBtn,
+    alocacaoTableBody;
+
+let attendanceChart = null;
+let employeeTypeChart = null;
+let allEmployees = [];
+let allTrocadores = [];
+let attendanceRecordsToday = [];
+let currentEmployeeView = 'gallery';
+let currentEmployeeSort = 'az';
+
+// --- UTILITY FUNCTIONS ---
+const showLoading = (isLoading) => { document.getElementById('loadingOverlay').style.display = isLoading ? 'flex' : 'none'; };
+function showToast(message, type = 'success') {
+    const toastContainer = document.querySelector('body');
+    const toast = document.createElement('div');
+    toast.textContent = message;
+    toast.className = 'toast show';
+    toast.classList.remove('bg-red-500', 'bg-green-500');
+    toast.classList.add(type === 'error' ? 'bg-red-500' : 'bg-green-500');
+    toastContainer.appendChild(toast);
+    setTimeout(() => { toast.remove(); }, 3000);
+}
+const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const [year, month, day] = dateString.split('-');
+    return `${day}/${month}/${year}`;
+};
+
+// --- NAVIGATION & LAYOUT ---
+function setupModal(modalId, openTriggerId) {
+    const modal = document.getElementById(modalId);
+    const openBtn = document.getElementById(openTriggerId);
+    if (modal && openBtn) {
+        openBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            modal.classList.add('show');
+        });
+    }
+}
+
+function setupAppLayout() {
+    setupModal('modal-settings', 'settings-button');
+    setupModal('modal-tutorial', 'show-tutorial');
+    setupModal('modal-absent-ai', 'analyzeAbsenceWithAi');
+    setupModal('employeeModal', 'openAddEmployeeModalBtn');
+    setupModal('employeeModal', 'openAddEmployeeModalBtnSecondary');
+
+
+    const sidebar = document.getElementById('sidebar');
+    const menuButton = document.getElementById('menu-button');
+    const closeSidebarButton = document.getElementById('close-sidebar');
+    const sidebarOverlay = document.getElementById('sidebar-overlay');
+    
+    menuButton.addEventListener('click', () => {
+        if (window.innerWidth < 768) {
+            sidebar.classList.remove('collapsed');
+            sidebar.classList.add('show');
+            sidebarOverlay.classList.remove('hidden');
+        } else {
+            sidebar.classList.toggle('collapsed');
+            document.querySelector('.main-content').style.marginLeft = sidebar.classList.contains('collapsed') ? 'var(--sidebar-width-collapsed)' : 'var(--sidebar-width)';
+        }
+    });
+    closeSidebarButton.addEventListener('click', () => {
+        sidebar.classList.remove('show');
+        sidebarOverlay.classList.add('hidden');
+    });
+    sidebarOverlay.addEventListener('click', () => {
+        sidebar.classList.remove('show');
+        sidebarOverlay.classList.add('hidden');
+    });
+
+    document.body.addEventListener('click', (e) => {
+        if (e.target.dataset.closeModalId) {
+            document.getElementById(e.target.dataset.closeModalId).classList.remove('show');
+        }
+    });
+    
+    const apiKeyInput = document.getElementById('gemini-api-key');
+    const saveApiKeyBtn = document.getElementById('save-api-key');
+    if (apiKeyInput) apiKeyInput.value = localStorage.getItem('geminiApiKey') || '';
+    if (saveApiKeyBtn) saveApiKeyBtn.addEventListener('click', () => {
+        const key = apiKeyInput.value.trim();
+        if (key) {
+            localStorage.setItem('geminiApiKey', key);
+            showToast('Chave API salva com sucesso!');
+            document.getElementById('modal-settings').classList.remove('show');
+        } else {
+            showToast('Por favor, insira uma chave API válida.', 'error');
+        }
+    });
+}
+
+function showSection(sectionKey) {
+    Object.keys(sections).forEach(key => {
+        if (sections[key]) sections[key].classList.add('section-hidden');
+        if (navButtons[key]) {
+            navButtons[key].classList.remove('btn-blue');
+            navButtons[key].classList.add('btn-secondary');
+        }
+    });
+    if (sections[sectionKey]) sections[sectionKey].classList.remove('section-hidden');
+    if (navButtons[sectionKey]) {
+        navButtons[sectionKey].classList.remove('btn-secondary');
+        navButtons[sectionKey].classList.add('btn-blue');
+    }
+    
+    const currentDate = attendanceDateInput ? attendanceDateInput.value : null;
+    if (currentDate) {
+        fetchAttendanceForDate(currentDate).then(() => {
+            if (sectionKey === 'dashboard') renderDashboard();
+            if (sectionKey === 'alocacaoDiaria') renderAlocacaoDiaria();
+        });
+    } else if (sectionKey === 'dashboard') {
+        renderDashboard();
+    }
+}
+
+// --- CORE LOGIC ---
+async function fetchMaquinasParaAlocacao() {
+    const { data, error } = await sbClient.from('maquinas_cadastradas').select('nome_maquina').order('nome_maquina');
+    if(error) {
+        console.error("Erro ao buscar máquinas:", error);
+        return;
+    }
+    const maquinaSelect = document.getElementById('alocacaoMaquina');
+    if(!maquinaSelect) return;
+    maquinaSelect.innerHTML = '<option value="">Selecione a máquina</option>';
+    data.forEach(m => {
+        maquinaSelect.add(new Option(m.nome_maquina, m.nome_maquina));
+    });
+}
+
+function renderAlocacaoDiaria() {
+    if (!alocacaoTableBody) return;
+    alocacaoTableBody.innerHTML = '';
+    const alocados = attendanceRecordsToday.filter(r => r.status === 'presente' && r.maquina_alocada && r.funcionario);
+    
+    if(alocados.length === 0) {
+        alocacaoTableBody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Nenhuma alocação registrada para esta data.</td></tr>';
+        return;
+    }
+
+    alocados.sort((a,b) => a.funcionario.nome.localeCompare(b.funcionario.nome));
+
+    alocados.forEach(record => {
+        const tr = document.createElement('tr');
+        tr.className = "border-b border-gray-200 last:border-b-0";
+        tr.innerHTML = `
+            <td class="py-3 px-4 text-sm text-gray-800">${formatDate(record.data)}</td>
+            <td class="py-3 px-4 text-sm text-gray-800">${record.funcionario.nome}</td>
+            <td class="py-3 px-4 text-sm text-gray-800">${record.maquina_alocada || 'N/A'}</td>
+            <td class="py-3 px-4 text-sm text-gray-800">${record.peca_produzida || 'N/A'}</td>
+        `;
+        alocacaoTableBody.appendChild(tr);
+    });
+}
+
+async function registerAttendance() {
+    if (!attendanceEmployeeSelect || !attendanceDateInput || !attendanceStatusSelect) return;
+    const funcionario_id = attendanceEmployeeSelect.value;
+    const data = attendanceDateInput.value;
+    const status = attendanceStatusSelect.value;
+    const maquina_alocada = document.getElementById('alocacaoMaquina').value;
+    const peca_produzida = document.getElementById('alocacaoPeca').value;
+
+    if (!funcionario_id || !data) {
+        showToast('Por favor, selecione funcionário e data.', 'error');
+        return;
+    }
+    
+    const recordData = {
+        status,
+        maquina_alocada: status === 'presente' ? maquina_alocada || null : null,
+        peca_produzida: status === 'presente' ? peca_produzida || null : null,
+    };
+
+    const { data: existing, error: fetchError } = await sbClient
+        .from('registros_presenca')
+        .select('id')
+        .eq('funcionario_id', funcionario_id)
+        .eq('data', data)
+        .maybeSingle();
+
+    if (fetchError) {
+        console.error('Erro ao verificar registro existente:', fetchError);
+        showToast('Erro ao registrar presença.', 'error');
+        return;
+    }
+
+    let result;
+    if (existing) {
+        result = await sbClient.from('registros_presenca').update(recordData).eq('id', existing.id);
+    } else {
+        result = await sbClient.from('registros_presenca').insert({ ...recordData, funcionario_id, data });
+    }
+
+    if (result.error) {
+        console.error('Erro ao registrar presença:', result.error);
+        showToast(`Erro ao registrar presença: ${result.error.message}`, 'error');
+    } else {
+        showToast(`Presença (${status}) registrada com sucesso!`);
+        await fetchAttendanceForDate(data);
+    }
+}
+
+async function fetchAttendanceForDate(date) {
+    if (!date) {
+        attendanceRecordsToday = [];
+        renderEmployeeSummary();
+        generateAndRenderBreakSchedule(null);
+        if (analyzeAbsenceBtn) analyzeAbsenceBtn.disabled = true;
+        if (document.getElementById('sectionDashboard')?.classList.contains('section-hidden') === false) renderDashboard();
+        return;
+    }
+    const { data: attendanceData, error } = await sbClient.from('registros_presenca').select(`*, funcionario:funcionarios (id, nome, tipo, horario_pausa_base, trocador_responsavel_id)`).eq('data', date);
+    if (error) { console.error('Erro ao buscar registros de presença:', error); showToast('Erro ao buscar presenças.', 'error'); attendanceRecordsToday = []; } 
+    else {
+        attendanceRecordsToday = (attendanceData || []).map(record => ({ ...record, funcionario: allEmployees.find(emp => emp.id === record.funcionario_id) || record.funcionario }));
+    }
+    if (analyzeAbsenceBtn) analyzeAbsenceBtn.disabled = attendanceRecordsToday.length === 0;
+    renderEmployeeSummary();
+    generateAndRenderBreakSchedule(date);
+    renderAlocacaoDiaria();
+    if (document.getElementById('sectionDashboard')?.classList.contains('section-hidden') === false) renderDashboard();
+}
+
+function updateEmployeeDisplayControls() {
+    if (!viewModeListBtn || !viewModeGalleryBtn || !sortAZBtn || !sortZABtn) return;
+    viewModeListBtn.classList.toggle('active', currentEmployeeView === 'list');
+    viewModeGalleryBtn.classList.toggle('active', currentEmployeeView === 'gallery');
+    sortAZBtn.classList.toggle('active', currentEmployeeSort === 'az');
+    sortZABtn.classList.toggle('active', currentEmployeeSort === 'za');
+}
+function sortEmployees(employees, sortOrder) {
+    const sortedEmployees = [...employees];
+    sortedEmployees.sort((a, b) => sortOrder === 'az' ? a.nome.localeCompare(b.nome) : b.nome.localeCompare(a.nome));
+    return sortedEmployees;
+}
+function renderEmployeeSummary() {
+    if (!employeeSummaryContainer) return;
+    employeeSummaryContainer.innerHTML = '';
+    const sortedEmployees = sortEmployees(allEmployees, currentEmployeeSort);
+    if (sortedEmployees.length === 0) {
+        employeeSummaryContainer.innerHTML = '<p class="text-gray-500 col-span-full text-center">Nenhum funcionário cadastrado.</p>';
+        return;
+    }
+    if (currentEmployeeView === 'gallery') {
+        const galleryContainer = document.createElement('div');
+        galleryContainer.className = 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4';
+        sortedEmployees.forEach(emp => {
+            const record = attendanceRecordsToday.find(r => r.funcionario && r.funcionario.id === emp.id);
+            let statusText = 'Não registrado';
+            let statusColor = 'text-gray-500';
+            if (record) {
+                statusText = record.status === 'presente' ? 'Presente' : 'Ausente';
+                statusColor = record.status === 'presente' ? 'text-green-600' : 'text-red-600';
+            }
+            const card = document.createElement('div');
+            card.className = 'bg-gray-50 p-4 rounded-lg shadow border border-gray-200 flex flex-col justify-between';
+            card.innerHTML = `<div><h4 class="font-semibold text-gray-800">${emp.nome} <span class="text-xs text-gray-500">(${emp.tipo.charAt(0).toUpperCase() + emp.tipo.slice(1)})</span></h4><p class="text-sm ${statusColor} font-medium">${statusText}</p></div><div class="mt-3 flex space-x-2 justify-end"><button class="edit-employee-btn text-blue-500 hover:text-blue-700 p-1" data-id="${emp.id}" title="Editar ${emp.nome}"><i data-lucide="edit-2" class="h-4 w-4"></i></button><button class="delete-employee-btn text-red-500 hover:text-red-700 p-1" data-id="${emp.id}" title="Excluir ${emp.nome}"><i data-lucide="trash-2" class="h-4 w-4"></i></button></div>`;
+            galleryContainer.appendChild(card);
+        });
+        employeeSummaryContainer.appendChild(galleryContainer);
+    } else {
+        const listContainer = document.createElement('ul');
+        listContainer.className = 'space-y-3';
+        sortedEmployees.forEach(emp => {
+            const record = attendanceRecordsToday.find(r => r.funcionario && r.funcionario.id === emp.id);
+            let statusText = 'Não registrado';
+            let statusColor = 'text-gray-500';
+            if (record) {
+                statusText = record.status === 'presente' ? 'Presente' : 'Ausente';
+                statusColor = record.status === 'presente' ? 'text-green-600' : 'text-red-600';
+            }
+            const listItem = document.createElement('li');
+            listItem.className = 'bg-gray-50 p-3 rounded-md shadow-sm border border-gray-200 flex justify-between items-center';
+            listItem.innerHTML = `<div class="flex-grow"><span class="font-medium text-gray-800">${emp.nome}</span><span class="text-xs text-gray-500 ml-1">(${emp.tipo.charAt(0).toUpperCase() + emp.tipo.slice(1)})</span><span class="text-sm ${statusColor} ml-3 font-medium">${statusText}</span></div><div class="flex space-x-2"><button class="edit-employee-btn text-blue-500 hover:text-blue-700 p-1" data-id="${emp.id}" title="Editar ${emp.nome}"><i data-lucide="edit-2" class="h-4 w-4"></i></button><button class="delete-employee-btn text-red-500 hover:text-red-700 p-1" data-id="${emp.id}" title="Excluir ${emp.nome}"><i data-lucide="trash-2" class="h-4 w-4"></i></button></div>`;
+            listContainer.appendChild(listItem);
+        });
+        employeeSummaryContainer.appendChild(listContainer);
+    }
+    lucide.createIcons();
+    addEventListenersToEmployeeActions();
+}
+function addEventListenersToEmployeeActions() {
+    document.querySelectorAll('.edit-employee-btn').forEach(btn => btn.addEventListener('click', handleEditEmployee));
+    document.querySelectorAll('.delete-employee-btn').forEach(btn => btn.addEventListener('click', handleDeleteEmployee));
+}
+async function fetchEmployees() {
+    const { data, error } = await sbClient.from('funcionarios').select(`id, nome, tipo, horario_pausa_base, trocador_responsavel_id, trocador_responsavel:funcionarios!trocador_responsavel_id ( nome )`);
+    if (error) { console.error('Erro ao buscar funcionários:', error); showToast('Erro ao buscar funcionários.', 'error'); allEmployees = []; allTrocadores = []; return []; }
+    allEmployees = data || [];
+    allTrocadores = allEmployees.filter(emp => emp.tipo === 'trocador');
+    return allEmployees;
+}
+function populateTrocadorSelect(selectElement, selectedTrocadorId = null) {
+    if (!selectElement) return;
+    selectElement.innerHTML = '<option value="">Nenhum</option>';
+    allTrocadores.forEach(trocador => {
+        const option = document.createElement('option');
+        option.value = trocador.id;
+        option.textContent = trocador.nome;
+        if (selectedTrocadorId && trocador.id === selectedTrocadorId) option.selected = true;
+        selectElement.appendChild(option);
+    });
+}
+function openEmployeeModalForAdd() {
+    if (!employeeModalTitle || !employeeForm || !employeeIdInput || !employeeTypeSelect || !employeeTrocadorSelect) return;
+    employeeModalTitle.textContent = 'Adicionar Funcionário';
+    employeeForm.reset();
+    employeeIdInput.value = '';
+    employeeTypeSelect.value = 'operador';
+    handleEmployeeTypeChange();
+    populateTrocadorSelect(employeeTrocadorSelect);
+    if (employeeModal) employeeModal.classList.add('show');
+}
+function handleEmployeeTypeChange() {
+    if (!employeeTypeSelect || !horarioPausaField || !horarioPausaHelpText || !trocadorResponsavelField || !employeeTrocadorSelect || !employeeBreakTimeBaseSelect) return;
+    const selectedType = employeeTypeSelect.value;
+    if (selectedType === 'operador') {
+        horarioPausaField.style.display = 'block';
+        horarioPausaHelpText.textContent = 'Este horário (Ref. Janeiro) rotaciona mensalmente.';
+        trocadorResponsavelField.style.display = 'block';
+    } else if (['supervisor', 'lider', 'treinador'].includes(selectedType)) {
+        horarioPausaField.style.display = 'block';
+        horarioPausaHelpText.textContent = 'Horário de pausa fixo para este funcionário.';
+        trocadorResponsavelField.style.display = 'none';
+        employeeTrocadorSelect.value = '';
+    } else {
+        horarioPausaField.style.display = 'none';
+        trocadorResponsavelField.style.display = 'none';
+        employeeBreakTimeBaseSelect.value = '';
+        employeeTrocadorSelect.value = '';
+    }
+}
+async function handleEmployeeFormSubmit(e) {
+    e.preventDefault();
+    if (!employeeIdInput || !employeeNameInput || !employeeTypeSelect || !employeeBreakTimeBaseSelect || !employeeTrocadorSelect || !employeeModal) return;
+    const id = employeeIdInput.value;
+    const nome = employeeNameInput.value;
+    const tipo = employeeTypeSelect.value;
+    let horario_pausa_base = null;
+    if (['operador', 'supervisor', 'lider', 'treinador'].includes(tipo) && employeeBreakTimeBaseSelect.value) {
+        horario_pausa_base = employeeBreakTimeBaseSelect.value;
+    }
+    let trocador_responsavel_id = null;
+    if (tipo === 'operador' && employeeTrocadorSelect.value) {
+        trocador_responsavel_id = employeeTrocadorSelect.value;
+    }
+    const employeeData = { nome, tipo, horario_pausa_base, trocador_responsavel_id };
+    let result;
+    if (id) {
+        result = await sbClient.from('funcionarios').update(employeeData).eq('id', id).select();
+    } else {
+        result = await sbClient.from('funcionarios').insert(employeeData).select();
+    }
+    if (result.error) {
+        console.error('Erro ao salvar funcionário:', result.error);
+        showToast(`Erro ao salvar: ${result.error.message}`, 'error');
+    } else {
+        showToast(`Funcionário ${id ? 'atualizado' : 'adicionado'} com sucesso!`);
+        employeeModal.classList.remove('show');
+        await refreshAllData();
+    }
+}
+async function handleEditEmployee(event) {
+    if (!employeeModalTitle || !employeeIdInput || !employeeNameInput || !employeeTypeSelect || !employeeTrocadorSelect || !employeeModal) return;
+    const id = event.currentTarget.dataset.id;
+    const employee = allEmployees.find(emp => emp.id.toString() === id);
+    if (!employee) return;
+    employeeModalTitle.textContent = 'Editar Funcionário';
+    employeeIdInput.value = employee.id;
+    employeeNameInput.value = employee.nome;
+    employeeTypeSelect.value = employee.tipo;
+    handleEmployeeTypeChange();
+    if (['operador', 'supervisor', 'lider', 'treinador'].includes(employee.tipo)) {
+        employeeBreakTimeBaseSelect.value = employee.horario_pausa_base || '';
+    }
+    if (employee.tipo === 'operador') {
+        populateTrocadorSelect(employeeTrocadorSelect, employee.trocador_responsavel_id);
+    }
+    employeeModal.classList.add('show');
+}
+async function handleDeleteEmployee(event) {
+    const id = event.currentTarget.dataset.id;
+    const employee = allEmployees.find(emp => emp.id.toString() === id);
+    if (!employee) return;
+    if (confirm(`Tem certeza que deseja excluir ${employee.nome}? Esta ação não pode ser desfeita.`)) {
+        const { data: referencingOperators, error: fetchError } = await sbClient.from('funcionarios').select('id').eq('trocador_responsavel_id', id);
+        if (fetchError) { console.error('Erro ao verificar referências:', fetchError); showToast('Erro ao verificar referências antes de excluir.', 'error'); return; }
+        if (referencingOperators && referencingOperators.length > 0) { showToast(`${employee.nome} é trocador responsável por outros operadores. Reatribua-os antes de excluir.`, 'error'); return; }
+        const { error } = await sbClient.from('funcionarios').delete().eq('id', id);
+        if (error) { console.error('Erro ao excluir funcionário:', error); showToast(`Erro ao excluir: ${error.message}`, 'error'); } 
+        else { showToast('Funcionário excluído com sucesso!'); await refreshAllData(); }
+    }
+}
+function populateAttendanceEmployeeSelect(employees) {
+    if (!attendanceEmployeeSelect) return;
+    attendanceEmployeeSelect.innerHTML = '<option value="">Selecione um funcionário</option>';
+    const sortedForSelect = sortEmployees(employees, 'az');
+    sortedForSelect.forEach(emp => {
+        const option = document.createElement('option');
+        option.value = emp.id;
+        option.textContent = `${emp.nome} (${emp.tipo.charAt(0).toUpperCase() + emp.tipo.slice(1)})`;
+        attendanceEmployeeSelect.appendChild(option);
+    });
+}
+function updateDateDisplays(dateStr) {
+    const formattedDt = formatDate(dateStr);
+    if (scheduleDateDisplayPausa) scheduleDateDisplayPausa.textContent = formattedDt;
+    if (scheduleDateDisplayForTitle) scheduleDateDisplayForTitle.textContent = formattedDt;
+    if (document.getElementById('dashboardDateDisplay')) document.getElementById('dashboardDateDisplay').textContent = formattedDt;
+}
+function getRotatedBreakHour(baseHourStr, currentDate) {
+    if (!baseHourStr) return null;
+    const baseHour = parseInt(baseHourStr.split(':')[0]);
+    const currentMonth = currentDate.getUTCMonth();
+    const shift = currentMonth;
+    const newHourOffset = (baseHour - 15 + shift) % 5;
+    return 15 + newHourOffset;
+}
+function generateAndRenderBreakSchedule(dateStr) {
+    if (!breakScheduleTable || !breakScheduleTableBody) return;
+    breakScheduleTable.querySelector('thead').innerHTML = `<tr class="bg-gray-200"><th class="py-3 px-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Funcionário</th><th class="py-3 px-4 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">15h</th><th class="py-3 px-4 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">16h</th><th class="py-3 px-4 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">17h</th><th class="py-3 px-4 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">18h</th><th class="py-3 px-4 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">19h</th><th class="py-3 px-4 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">20h</th></tr>`;
+    breakScheduleTableBody.innerHTML = '';
+    if (!dateStr) { breakScheduleTableBody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Por favor, selecione uma data.</td></tr>'; return; }
+    const currentDate = new Date(dateStr + 'T00:00:00Z');
+    const presentEmployees = attendanceRecordsToday.filter(r => r.status === 'presente' && r.funcionario).map(r => r.funcionario);
+    const systemTrocadores = allEmployees.filter(emp => emp.tipo === 'trocador').sort((a, b) => a.nome.localeCompare(b.nome));
+    const otherLeadersPresent = presentEmployees.filter(emp => ['supervisor', 'lider', 'treinador'].includes(emp.tipo) && emp.horario_pausa_base).sort((a,b) => a.nome.localeCompare(b.nome));
+    if (systemTrocadores.length === 0 && otherLeadersPresent.length === 0) { breakScheduleTableBody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Nenhum trocador ou liderança cadastrada para exibir.</td></tr>'; return; }
+    let hasAnyEntry = false;
+    systemTrocadores.forEach(trocador => {
+        hasAnyEntry = true;
+        const tr = document.createElement('tr');
+        tr.className = "border-b border-gray-200 last:border-b-0";
+        tr.innerHTML += `<td class="py-3 px-4 text-sm text-gray-800 font-semibold">${trocador.nome}</td><td class="py-3 px-4 text-sm text-gray-400 text-center">-</td>`;
+        const presentOperatorsForThisTrocador = presentEmployees.filter(emp => emp.tipo === 'operador' && emp.trocador_responsavel_id === trocador.id && emp.horario_pausa_base).map(op => ({ ...op, rotatedBreakHour: getRotatedBreakHour(op.horario_pausa_base, currentDate) })).sort((a, b) => (a.rotatedBreakHour === null ? 99 : a.rotatedBreakHour) - (b.rotatedBreakHour === null ? 99 : b.rotatedBreakHour) || a.nome.localeCompare(b.nome));
+        let operatorToPlaceIndex = 0;
+        [16, 17, 18, 19].forEach(() => {
+            if (operatorToPlaceIndex < presentOperatorsForThisTrocador.length) {
+                tr.innerHTML += `<td class="py-3 px-4 text-sm text-gray-700 text-center">${presentOperatorsForThisTrocador[operatorToPlaceIndex].nome}</td>`;
+                operatorToPlaceIndex++;
+            } else {
+                tr.innerHTML += `<td class="py-3 px-4 text-sm text-gray-400 text-center">-</td>`;
+            }
+        });
+        const isTrocadorPresent = presentEmployees.some(pEmp => pEmp.id === trocador.id);
+        if (isTrocadorPresent) { tr.innerHTML += `<td class="py-3 px-4 text-sm text-center font-semibold bg-blue-100 text-blue-700">${trocador.nome.toUpperCase()}</td>`; } 
+        else { tr.innerHTML += `<td class="py-3 px-4 text-sm text-center font-semibold bg-red-100 text-red-600">AUSENTE</td>`; }
+        breakScheduleTableBody.appendChild(tr);
+    });
+    otherLeadersPresent.forEach(leader => {
+        hasAnyEntry = true;
+        const tr = document.createElement('tr');
+        tr.className = "border-b border-gray-200 last:border-b-0 bg-gray-50";
+        tr.innerHTML += `<td class="py-3 px-4 text-sm text-gray-800 font-semibold">${leader.nome}</td>`;
+        const leaderBreakHour = parseInt(leader.horario_pausa_base.split(':')[0]);
+        [15, 16, 17, 18, 19, 20].forEach(slotHour => {
+            if (slotHour === leaderBreakHour) { tr.innerHTML += `<td class="py-3 px-4 text-sm text-center font-semibold text-purple-700 bg-purple-100">${leader.nome.toUpperCase()}</td>`; } 
+            else { tr.innerHTML += `<td class="py-3 px-4 text-sm text-gray-400 text-center">-</td>`; }
+        });
+        breakScheduleTableBody.appendChild(tr);
+    });
+    if (!hasAnyEntry) { breakScheduleTableBody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Nenhum funcionário (trocador ou liderança) para exibir na escala de pausa.</td></tr>'; }
+}
+function setupExportButtonListeners() {
+    if (exportPdfBtn) exportPdfBtn.addEventListener('click', () => {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: 'landscape' });
+        const dateForTitle = formatDate(attendanceDateInput.value || new Date().toISOString().slice(0,10));
+        doc.setFontSize(18); doc.text("Horários de Janta", doc.internal.pageSize.getWidth() / 2, 15, { align: 'center' });
+        doc.setFontSize(12); doc.text(`Horário de Pausas e Operadores - ${dateForTitle}`, doc.internal.pageSize.getWidth() / 2, 22, { align: 'center' });
+        doc.autoTable({ html: '#breakScheduleTable', startY: 30, theme: 'grid', headStyles: { fillColor: [30, 41, 59] }, styles: { font: 'Inter', cellPadding: 2.5, fontSize: 9 }, columnStyles: { 0: { halign: 'left', fontStyle: 'bold', cellWidth: 50 } } });
+        doc.save(`horarios_pausa_${(attendanceDateInput.value || 'hoje').replace(/-/g, '_')}.pdf`);
+        showToast('PDF gerado com sucesso!');
+    });
+    if (exportPngBtn) exportPngBtn.addEventListener('click', () => {
+        const printableArea = document.getElementById('printableArea');
+        html2canvas(printableArea, { scale: 2, useCORS: true, backgroundColor: '#ffffff' }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = `horarios_pausa_${(attendanceDateInput.value || 'hoje').replace(/-/g, '_')}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            showToast('PNG gerado com sucesso!');
+        });
+    });
+    if (printScheduleBtn) printScheduleBtn.addEventListener('click', () => { window.print(); });
+}
+function renderDashboard() {
+    const dashboardDateElem = document.getElementById('dashboardDateDisplay');
+    if (dashboardDateElem && attendanceDateInput) dashboardDateElem.textContent = formatDate(attendanceDateInput.value);
+    const totalEmployeesElem = document.getElementById('kpiTotalEmployees');
+    const presentTodayElem = document.getElementById('kpiPresentToday');
+    const absentTodayElem = document.getElementById('kpiAbsentToday');
+    if (totalEmployeesElem) totalEmployeesElem.textContent = allEmployees.length;
+    const presentCount = attendanceRecordsToday.filter(r => r.status === 'presente').length;
+    const absentCount = attendanceRecordsToday.filter(r => r.status === 'ausente').length;
+    if (presentTodayElem) presentTodayElem.textContent = presentCount;
+    if (absentTodayElem) absentTodayElem.textContent = absentCount;
+    const attendanceCtx = document.getElementById('attendanceChart');
+    if (attendanceCtx) {
+        if (attendanceChart) attendanceChart.destroy();
+        attendanceChart = new Chart(attendanceCtx, { type: 'doughnut', data: { labels: ['Presentes', 'Ausentes', 'Não Registrados'], datasets: [{ label: 'Status de Presença', data: [presentCount, absentCount, allEmployees.length - (presentCount + absentCount)], backgroundColor: ['rgb(16, 185, 129)', 'rgb(239, 68, 68)', 'rgb(209, 213, 219)'], hoverOffset: 4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Visão Geral da Presença', font: { size: 16 } } } } });
+    }
+    const employeeTypeCtx = document.getElementById('employeeTypeChart');
+    if (employeeTypeCtx) {
+        if (employeeTypeChart) employeeTypeChart.destroy();
+        const typeCounts = allEmployees.reduce((acc, emp) => { acc[emp.tipo] = (acc[emp.tipo] || 0) + 1; return acc; }, {});
+        const typeLabels = Object.keys(typeCounts).map(type => type.charAt(0).toUpperCase() + type.slice(1));
+        const typeData = Object.values(typeCounts);
+        employeeTypeChart = new Chart(employeeTypeCtx, { type: 'pie', data: { labels: typeLabels, datasets: [{ label: 'Distribuição por Tipo', data: typeData, backgroundColor: ['rgb(59, 130, 246)', 'rgb(249, 115, 22)', 'rgb(139, 92, 246)', 'rgb(22, 163, 74)', 'rgb(217, 70, 239)'], hoverOffset: 4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Distribuição de Funcionários por Tipo', font: { size: 16 } } } } });
+    }
+    lucide.createIcons();
+}
+async function refreshAllData() {
+    await Promise.all([
+        fetchEmployees(),
+        fetchMaquinasParaAlocacao()
+    ]);
+    populateAttendanceEmployeeSelect(allEmployees);
+    if (employeeTrocadorSelect) populateTrocadorSelect(employeeTrocadorSelect);
+    const currentDate = attendanceDateInput ? attendanceDateInput.value : null;
+    if (currentDate) { await fetchAttendanceForDate(currentDate); } 
+    else { renderEmployeeSummary(); generateAndRenderBreakSchedule(null); }
+    updateEmployeeDisplayControls();
+    if (sections && sections.dashboard && !sections.dashboard.classList.contains('section-hidden')) renderDashboard();
+}
+function initializeDOMReferences() {
+    attendanceDateInput = document.getElementById('attendanceDate');
+    toastElement = document.getElementById('toast');
+    employeeModal = document.getElementById('employeeModal');
+    attendanceEmployeeSelect = document.getElementById('attendanceEmployeeSelect');
+    attendanceStatusSelect = document.getElementById('attendanceStatus');
+    registerAttendanceBtn = document.getElementById('registerAttendanceBtn');
+    employeeSummaryContainer = document.getElementById('employeeSummaryContainer');
+    viewModeListBtn = document.getElementById('viewModeList');
+    viewModeGalleryBtn = document.getElementById('viewModeGallery');
+    sortAZBtn = document.getElementById('sortAZ');
+    sortZABtn = document.getElementById('sortZA');
+    scheduleDateDisplayPausa = document.getElementById('scheduleDateDisplayPausa');
+    scheduleDateDisplayForTitle = document.getElementById('scheduleDateDisplayForTitle');
+    printableAreaHeader = document.getElementById('printableAreaHeader');
+    breakScheduleTable = document.getElementById('breakScheduleTable');
+    exportPdfBtn = document.getElementById('exportPdfBtn');
+    exportPngBtn = document.getElementById('exportPngBtn');
+    printScheduleBtn = document.getElementById('printScheduleBtn');
+    printableAreaFooter = document.getElementById('printableAreaFooter');
+    analyzeAbsenceBtn = document.getElementById('analyzeAbsenceWithAi');
+    navButtons = { registrarPresencas: document.getElementById('navRegistrarPresencas'), horariosPausa: document.getElementById('navHorariosPausa'), dashboard: document.getElementById('navDashboard'), alocacaoDiaria: document.getElementById('navAlocacao') };
+    sections = { registrarPresencas: document.getElementById('sectionRegistrarPresencas'), horariosPausa: document.getElementById('sectionHorariosPausa'), dashboard: document.getElementById('sectionDashboard'), alocacaoDiaria: document.getElementById('sectionAlocacaoDiaria') };
+    alocacaoTableBody = document.getElementById('alocacaoTableBody');
+}
+function initializeDynamicDOMReferences() {
+    openAddEmployeeModalBtn = document.getElementById('openAddEmployeeModalBtn');
+    openAddEmployeeModalBtnSecondary = document.getElementById('openAddEmployeeModalBtnSecondary');
+    closeEmployeeModalBtn = document.getElementById('closeEmployeeModalBtn');
+    employeeForm = document.getElementById('employeeForm');
+    employeeModalTitle = document.getElementById('employeeModalTitle');
+    employeeIdInput = document.getElementById('employeeId');
+    employeeNameInput = document.getElementById('employeeName');
+    employeeTypeSelect = document.getElementById('employeeType');
+    horarioPausaField = document.getElementById('horarioPausaField');
+    horarioPausaHelpText = document.getElementById('horarioPausaHelpText');
+    employeeBreakTimeBaseSelect = document.getElementById('employeeBreakTimeBase');
+    trocadorResponsavelField = document.getElementById('trocadorResponsavelField');
+    employeeTrocadorSelect = document.getElementById('employeeTrocador');
+    breakScheduleTableBody = document.getElementById('breakScheduleTableBody');
+    if (openAddEmployeeModalBtn) openAddEmployeeModalBtn.addEventListener('click', openEmployeeModalForAdd);
+    if (openAddEmployeeModalBtnSecondary) openAddEmployeeModalBtnSecondary.addEventListener('click', openEmployeeModalForAdd);
+    if (closeEmployeeModalBtn) closeEmployeeModalBtn.addEventListener('click', () => { if (employeeModal) employeeModal.classList.remove('show'); });
+    if (employeeTypeSelect) employeeTypeSelect.addEventListener('change', handleEmployeeTypeChange);
+    if (employeeForm) employeeForm.addEventListener('submit', handleEmployeeFormSubmit);
+    handleEmployeeTypeChange();
+}
+function initializeAppEventListeners() {
+    if (navButtons.registrarPresencas) navButtons.registrarPresencas.addEventListener('click', () => showSection('registrarPresencas'));
+    if (navButtons.horariosPausa) navButtons.horariosPausa.addEventListener('click', () => showSection('horariosPausa'));
+    if (navButtons.dashboard) navButtons.dashboard.addEventListener('click', () => showSection('dashboard'));
+    if (navButtons.alocacaoDiaria) navButtons.alocacaoDiaria.addEventListener('click', () => showSection('alocacaoDiaria'));
+    if (registerAttendanceBtn) registerAttendanceBtn.addEventListener('click', registerAttendance);
+    if (attendanceDateInput) attendanceDateInput.addEventListener('change', (e) => { const newDate = e.target.value; if (newDate) { updateDateDisplays(newDate); fetchAttendanceForDate(newDate); } });
+    if (viewModeListBtn) viewModeListBtn.addEventListener('click', () => { currentEmployeeView = 'list'; updateEmployeeDisplayControls(); renderEmployeeSummary(); });
+    if (viewModeGalleryBtn) viewModeGalleryBtn.addEventListener('click', () => { currentEmployeeView = 'gallery'; updateEmployeeDisplayControls(); renderEmployeeSummary(); });
+    if (sortAZBtn) sortAZBtn.addEventListener('click', () => { currentEmployeeSort = 'az'; updateEmployeeDisplayControls(); renderEmployeeSummary(); });
+    if (sortZABtn) sortZABtn.addEventListener('click', () => { currentEmployeeSort = 'za'; updateEmployeeDisplayControls(); renderEmployeeSummary(); });
+    window.addEventListener('click', (event) => { if (event.target === employeeModal && employeeModal) employeeModal.classList.remove('show'); });
+    setupExportButtonListeners();
+    if(analyzeAbsenceBtn) analyzeAbsenceBtn.addEventListener('click', analisarAbsenteismoComIA);
+    if (attendanceStatusSelect) {
+        attendanceStatusSelect.addEventListener('change', (e) => {
+            document.getElementById('allocation-fields').style.display = e.target.value === 'presente' ? 'block' : 'none';
+        });
+    }
+}
+
+async function callGeminiApi(prompt, contentElement, exportButtonsElement) {
+    const apiKey = localStorage.getItem('geminiApiKey');
+    if (!apiKey) {
+        showToast('Chave API do Gemini não encontrada. Configure-a no menu de Configurações.', 'error');
+        if(contentElement) contentElement.innerHTML = '<p class="text-red-500">Chave API não configurada.</p>';
+        return;
+    }
+    showLoading(true);
+    if(contentElement) contentElement.innerHTML = '<p>Analisando dados com a IA... Por favor, aguarde.</p>';
+    if(exportButtonsElement) exportButtonsElement.classList.add('hidden');
+    
+    try {
+        const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+        const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (!response.ok) {
+            const errorBody = await response.json();
+            throw new Error(`HTTP error! status: ${response.status} - ${errorBody.error.message}`);
+        }
+        const result = await response.json();
+        if (result.candidates && result.candidates.length > 0) {
+            const text = result.candidates[0].content.parts[0].text;
+            let htmlResult = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/^- (.*$)/gm, '<li class="ml-4 list-disc">$1</li>').replace(/\n/g, '<br>');
+            if(contentElement) contentElement.innerHTML = htmlResult;
+            if(exportButtonsElement) exportButtonsElement.classList.remove('hidden');
+        } else {
+            throw new Error("Resposta da API inválida ou sem conteúdo.");
+        }
+    } catch (error) {
+        console.error('Erro na chamada da API Gemini:', error);
+        if(contentElement) contentElement.innerHTML = `<p class="text-red-500">Ocorreu um erro ao buscar a análise da IA. (Erro: ${error.message})</p>`;
+        showToast(`Erro na API Gemini: ${error.message}`, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function analisarAbsenteismoComIA() {
+    if (attendanceRecordsToday.length === 0) {
+        showToast("Não há dados de presença para analisar hoje.", "error");
+        return;
+    }
+    
+    const absentEmployees = attendanceRecordsToday.filter(r => r.status === 'ausente' && r.funcionario).map(r => `${r.funcionario.nome} (${r.funcionario.tipo})`).join(', ') || 'Nenhum';
+    const presentCount = attendanceRecordsToday.filter(r => r.status === 'presente').length;
+    const absentCount = attendanceRecordsToday.filter(r => r.status === 'ausente').length;
+    const prompt = `Como analista de RH e Produção, analise o quadro de absenteísmo do dia ${formatDate(attendanceDateInput.value)}. Total de funcionários: ${allEmployees.length}, Presentes: ${presentCount}, Ausentes: ${absentCount}. Funcionários ausentes: ${absentEmployees}. Gere um relatório conciso em português com: 1. **Resumo do Dia:** Um panorama geral. 2. **Impacto Operacional:** Aponte riscos, como a ausência de um Trocador e o impacto na escala de pausas dos seus operadores. 3. **Pontos de Atenção:** Destaque a ausência de líderes ou supervisores. 4. **Sugestão de Comunicação:** Escreva um breve parágrafo para um relatório diário à gerência.`;
+    
+    const contentElement = document.getElementById('absent-ai-result-content');
+    const exportButtons = document.getElementById('absent-ai-export-buttons');
+    await callGeminiApi(prompt, contentElement, exportButtons);
+}
+
+function exportarAnaliseAbsenteismoTXT() {
+    const contentElement = document.getElementById('absent-ai-result-content');
+    let contentText = contentElement.innerText;
+    if (!contentText || contentText.trim().startsWith('Analisando dados')) { showToast("Não há análise para exportar.", "error"); return; }
+    let fileContent = `RELATÓRIO DE ANÁLISE DE ABSENTEÍSMO\nData: ${formatDate(attendanceDateInput.value)}\n\n=========================================\n\n${contentText}`;
+    const blob = new Blob([fileContent], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `analise_absenteismo_${attendanceDateInput.value}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+}
+
+function exportarAnaliseAbsenteismoPDF() {
+    const contentElement = document.getElementById('absent-ai-result-content');
+    const contentText = contentElement.innerText;
+    if (!contentText || contentText.trim().startsWith('Analisando dados')) { showToast("Não há análise para exportar.", "error"); return; }
+    
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.text("Análise de Absenteísmo", 14, 22);
+    doc.setFontSize(11);
+    doc.text(`Data da Análise: ${formatDate(attendanceDateInput.value)}`, 14, 30);
+    doc.setLineWidth(0.5);
+    doc.line(14, 32, 196, 32);
+    doc.setFontSize(10);
+    const lines = doc.splitTextToSize(contentText, 180);
+    doc.text(lines, 14, 42);
+    doc.save(`analise_absenteismo_${attendanceDateInput.value}.pdf`);
+}
+
+function exportarAlocacaoPDF() {
+    const alocados = attendanceRecordsToday.filter(r => r.status === 'presente' && r.maquina_alocada && r.funcionario);
+    if (alocados.length === 0) {
+        showToast("Não há dados de alocação para exportar.", "error");
+        return;
+    }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const dateForTitle = formatDate(attendanceDateInput.value || new Date().toISOString().slice(0, 10));
+    const head = [['Data', 'Funcionário', 'Máquina Alocada', 'Peça Produzida']];
+    const body = alocados.map(record => [
+        formatDate(record.data),
+        record.funcionario.nome,
+        record.maquina_alocada || 'N/A',
+        record.peca_produzida || 'N/A'
+    ]);
+    doc.setFontSize(18);
+    doc.text(`Relatório de Alocação Diária`, doc.internal.pageSize.getWidth() / 2, 15, { align: 'center' });
+    doc.setFontSize(12);
+    doc.text(`Data: ${dateForTitle}`, doc.internal.pageSize.getWidth() / 2, 22, { align: 'center' });
+    doc.autoTable({
+        head: head,
+        body: body,
+        startY: 30,
+        theme: 'grid',
+        headStyles: { fillColor: [79, 70, 229] }
+    });
+    doc.save(`alocacao_diaria_${(attendanceDateInput.value || 'hoje').replace(/-/g, '_')}.pdf`);
+    showToast('PDF de Alocação gerado com sucesso!');
+}
+
+function exportarAlocacaoTXT() {
+    const alocados = attendanceRecordsToday.filter(r => r.status === 'presente' && r.maquina_alocada && r.funcionario);
+    if (alocados.length === 0) {
+        showToast("Não há dados de alocação para exportar.", "error");
+        return;
+    }
+    let textContent = `RELATÓRIO DE ALOCAÇÃO DIÁRIA\nDATA: ${formatDate(attendanceDateInput.value || new Date().toISOString().slice(0, 10))}\n\n`;
+    alocados.forEach(record => {
+        textContent += `Funcionário: ${record.funcionario.nome}\n`;
+        textContent += `  - Máquina: ${record.maquina_alocada || 'N/A'}\n`;
+        textContent += `  - Peça: ${record.peca_produzida || 'N/A'}\n`;
+        textContent += `--------------------------------------\n`;
+    });
+    const blob = new Blob([textContent], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `alocacao_diaria_${(attendanceDateInput.value || 'hoje').replace(/-/g, '_')}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    showToast('TXT de Alocação gerado com sucesso!');
+}
+
+async function initializeApp() {
+    document.getElementById('sectionRegistrarPresencas').innerHTML = `<div class="text-center mb-6"><label for="attendanceDate" class="block text-sm font-medium text-gray-700 mb-1">Data Selecionada</label><input type="date" id="attendanceDate" class="mx-auto p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 w-full max-w-xs"></div><div class="grid grid-cols-1 lg:grid-cols-3 gap-6"><div class="lg:col-span-2 bg-white p-6 rounded-lg shadow-lg space-y-4"><div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3"><h2 class="text-xl font-semibold text-gray-700">Registrar Presença/Alocação</h2><button id="openAddEmployeeModalBtn" class="w-full sm:w-auto bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow inline-flex items-center justify-center transition duration-150 ease-in-out"><i data-lucide="user-plus" class="mr-2 h-5 w-5"></i>Novo Funcionário</button></div><div><label for="attendanceEmployeeSelect" class="block text-sm font-medium text-gray-700 mb-1">Selecione o Funcionário:</label><select id="attendanceEmployeeSelect" class="w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"></select></div><div><label for="attendanceStatus" class="block text-sm font-medium text-gray-700 mb-1">Status:</label><select id="attendanceStatus" class="w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"><option value="presente">Presente</option> <option value="ausente">Ausente</option></select></div><div id="allocation-fields" class="space-y-4"><div><label for="alocacaoMaquina" class="block text-sm font-medium text-gray-700 mb-1">Máquina Alocada:</label><select id="alocacaoMaquina" class="w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"><option value="">Carregando máquinas...</option></select></div><div><label for="alocacaoPeca" class="block text-sm font-medium text-gray-700 mb-1">Peça Produzida:</label><input type="text" id="alocacaoPeca" class="w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"></div></div><button id="registerAttendanceBtn" class="w-full bg-gray-700 hover:bg-gray-800 text-white font-semibold py-2.5 px-4 rounded-lg shadow transition duration-150 ease-in-out mt-4">Registrar</button></div><div class="lg:col-span-1 space-y-4"><div class="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 rounded-md shadow"><h3 class="font-bold mb-1">Instruções</h3><p class="text-sm">Use o formulário ao lado para registrar a presença ou ausência. Se o status for "Presente", você pode alocar o funcionário a uma máquina.</p></div><div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded-md shadow"><h3 class="font-bold mb-1">Como funciona</h3><p class="text-sm">Para Operadores, o "Horário de Pausa Base" é uma referência para Janeiro e rotaciona automaticamente nos meses seguintes. Para outros cargos, o horário de pausa é fixo.</p></div></div></div><div class="bg-white p-6 rounded-lg shadow-lg mt-6"><div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4"><h2 class="text-xl font-semibold text-gray-700">Resumo de Presenças do Dia</h2><div class="flex flex-wrap gap-2 items-center w-full sm:w-auto justify-start sm:justify-end"><div class="flex gap-1"><button id="viewModeList" class="control-button" title="Visualizar como Lista"><i data-lucide="list"></i></button><button id="viewModeGallery" class="control-button active" title="Visualizar como Galeria"><i data-lucide="layout-grid"></i></button></div><div class="flex gap-1"><button id="sortAZ" class="control-button active" title="Ordenar A-Z"><i data-lucide="sort-asc"></i> A-Z</button><button id="sortZA" class="control-button" title="Ordenar Z-A"><i data-lucide="sort-desc"></i> Z-A</button></div><button id="openAddEmployeeModalBtnSecondary" class="w-full sm:w-auto text-blue-500 hover:text-blue-700 font-semibold py-1.5 px-3 rounded-lg inline-flex items-center justify-center text-sm border border-blue-500 hover:bg-blue-50"><i data-lucide="plus-circle" class="mr-1.5 h-4 w-4"></i>Adicionar Funcionário</button></div></div><div id="employeeSummaryContainer"></div></div>`;
+    document.getElementById('sectionAlocacaoDiaria').innerHTML = `<div class="bg-white p-6 rounded-lg shadow-lg"><div class="flex flex-col sm:flex-row flex-wrap gap-2 mb-4 no-print items-center"><h2 class="text-xl font-semibold text-gray-700 mr-auto">Alocação de Operadores na Data</h2><button onclick="exportarAlocacaoPDF()" class="w-full sm:w-auto bg-red-700 hover:bg-red-800 text-white font-semibold py-2 px-4 rounded-lg shadow inline-flex items-center justify-center transition duration-150 ease-in-out"><i data-lucide="file-down" class="mr-2 h-5 w-5"></i>Exportar PDF</button><button onclick="exportarAlocacaoTXT()" class="w-full sm:w-auto bg-cyan-600 hover:bg-cyan-700 text-white font-semibold py-2 px-4 rounded-lg shadow inline-flex items-center justify-center transition duration-150 ease-in-out"><i data-lucide="file-text" class="mr-2 h-5 w-5"></i>Exportar TXT</button></div><div class="overflow-x-auto"><table class="min-w-full bg-white"><thead><tr class="bg-gray-200"><th class="py-3 px-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Data</th><th class="py-3 px-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Funcionário</th><th class="py-3 px-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Máquina</th><th class="py-3 px-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Peça Produzida</th></tr></thead><tbody id="alocacaoTableBody" class="divide-y divide-gray-200"></tbody></table></div></div>`;
+    document.getElementById('sectionHorariosPausa').innerHTML = `<div class="bg-white p-6 rounded-lg shadow-lg"><div class="flex flex-col sm:flex-row flex-wrap gap-2 mb-4 no-print items-center"><h2 class="text-xl font-semibold text-gray-700 mr-auto">Horários de Pausa (<span id="scheduleDateDisplayPausa">Data</span>)</h2><button id="exportPdfBtn" class="w-full sm:w-auto bg-red-700 hover:bg-red-800 text-white font-semibold py-2 px-4 rounded-lg shadow inline-flex items-center justify-center transition duration-150 ease-in-out"><i data-lucide="file-down" class="mr-2 h-5 w-5"></i>Exportar PDF</button><button id="exportPngBtn" class="w-full sm:w-auto bg-green-700 hover:bg-green-800 text-white font-semibold py-2 px-4 rounded-lg shadow inline-flex items-center justify-center transition duration-150 ease-in-out"><i data-lucide="image" class="mr-2 h-5 w-5"></i>Exportar PNG</button><button id="printScheduleBtn" class="w-full sm:w-auto bg-gray-700 hover:bg-gray-800 text-white font-semibold py-2 px-4 rounded-lg shadow inline-flex items-center justify-center transition duration-150 ease-in-out"><i data-lucide="printer" class="mr-2 h-5 w-5"></i>Imprimir</button></div><div id="printableArea" class="overflow-x-auto bg-white p-0 md:p-4 rounded"><div id="printableAreaHeader" class="text-center mb-4 print-only"><h2 class="text-2xl font-bold text-gray-800">Horários de Janta</h2><h3 class="text-lg font-semibold text-gray-600">Horário de Pausas e Operadores - <span id="scheduleDateDisplayForTitle">Data</span></h3></div><table id="breakScheduleTable" class="min-w-full bg-white rounded-lg shadow mb-4"><thead></thead><tbody id="breakScheduleTableBody" class="divide-y divide-gray-200"></tbody></table><div id="printableAreaFooter" class="text-center text-xs text-gray-600 pt-4 mt-4 border-t border-gray-200">ScWeb - 2025 @ Rafael Scarpato</div></div></div>`;
+    document.getElementById('sectionDashboard').innerHTML = `<div class="space-y-6"><div class="flex flex-wrap gap-4 justify-between items-center"><h2 class="text-2xl font-semibold text-gray-800">Dashboard</h2><div class="flex items-center gap-4"><span class="text-lg text-gray-600">Data: <span id="dashboardDateDisplay"></span></span><button id="analyzeAbsenceWithAi" class="action-button btn-primary" disabled><i data-lucide="sparkles" class="mr-2 h-4 w-4"></i>Analisar Absenteísmo</button></div></div><div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"><div class="kpi-card"><div class="flex items-center justify-center text-blue-500 mb-2"><i data-lucide="users" class="h-8 w-8"></i></div><h3 class="kpi-card-title">Total de Funcionários</h3><p id="kpiTotalEmployees" class="kpi-card-value">0</p></div><div class="kpi-card"><div class="flex items-center justify-center text-green-500 mb-2"><i data-lucide="user-check" class="h-8 w-8"></i></div><h3 class="kpi-card-title">Presentes Hoje</h3><p id="kpiPresentToday" class="kpi-card-value">0</p></div><div class="kpi-card"><div class="flex items-center justify-center text-red-500 mb-2"><i data-lucide="user-x" class="h-8 w-8"></i></div><h3 class="kpi-card-title">Ausentes Hoje</h3><p id="kpiAbsentToday" class="kpi-card-value">0</p></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6"><div class="chart-container"><canvas id="attendanceChart"></canvas></div><div class="chart-container"><canvas id="employeeTypeChart"></canvas></div></div></div>`;
+    document.getElementById('employeeModal').innerHTML = `<div class="modal-content"><span class="close-button" id="closeEmployeeModalBtn">&times;</span><h3 id="employeeModalTitle" class="text-xl font-semibold mb-4">Adicionar Funcionário</h3><form id="employeeForm"><input type="hidden" id="employeeId"><div class="mb-4"><label for="employeeName" class="block text-sm font-medium text-gray-700">Nome:</label><input type="text" id="employeeName" required class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"></div><div class="mb-4"><label for="employeeType" class="block text-sm font-medium text-gray-700">Tipo:</label><select id="employeeType" required class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"><option value="operador">Operador</option><option value="trocador">Trocador (Sup. Linha)</option><option value="supervisor">Supervisor</option><option value="lider">Líder</option><option value="treinador">Treinador</option></select></div><div id="operadorFieldsContainer"><div id="horarioPausaField" class="mb-4" style="display: none;"><label for="employeeBreakTimeBase" class="block text-sm font-medium text-gray-700">Horário de Pausa Base (Ref. Janeiro):</label><p id="horarioPausaHelpText" class="text-xs text-gray-500 mb-1"></p><select id="employeeBreakTimeBase" class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"><option value="">Selecione</option><option value="15:00:00">15:00</option><option value="16:00:00">16:00</option><option value="17:00:00">17:00</option><option value="18:00:00">18:00</option><option value="19:00:00">19:00</option></select></div><div id="trocadorResponsavelField" class="mb-4" style="display: none;"><label for="employeeTrocador" class="block text-sm font-medium text-gray-700">Trocador Responsável:</label><select id="employeeTrocador" class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"></select></div></div><div class="flex justify-end"><button type="submit" class="bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg shadow transition duration-150 ease-in-out">Salvar</button></div></form></div>`;
+
+    setupAppLayout();
+    initializeDOMReferences();
+    initializeDynamicDOMReferences();
+    initializeAppEventListeners();
+
+    const defaultDate = new Date().toISOString().slice(0, 10);
+    if (attendanceDateInput) attendanceDateInput.value = defaultDate;
+    updateDateDisplays(defaultDate);
+    
+    await refreshAllData();
+    showSection('registrarPresencas');
+    lucide.createIcons();
+}
+
+document.addEventListener('DOMContentLoaded', initializeApp);
+
+</script>
+</body>
+</html>

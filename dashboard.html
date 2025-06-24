@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard de Análise - CDM-MB</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Chart.js para gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <!-- jsPDF para exportação de PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        :root { --sidebar-width: 250px; --sidebar-width-collapsed: 80px; }
+        body { background-color: #f3f4f6; font-family: 'Inter', sans-serif; }
+        .main-content { transition: margin-left 0.3s ease; margin-left: var(--sidebar-width-collapsed); }
+        .sidebar { width: var(--sidebar-width); transition: width 0.3s ease, transform 0.3s ease; }
+        .sidebar.collapsed { width: var(--sidebar-width-collapsed); }
+        .sidebar.collapsed .nav-text, .sidebar.collapsed .long-title { display: none; }
+        @media (max-width: 768px) {
+            .main-content { margin-left: 0; }
+            .sidebar { transform: translateX(-100%); width: var(--sidebar-width); }
+            .sidebar.show { transform: translateX(0); }
+            /* Garante que o texto apareça no modo mobile */
+            .sidebar.show .nav-text, .sidebar.show .long-title { display: inline; }
+            .sidebar.collapsed { width: var(--sidebar-width); }
+        }
+
+        /* Estilos de botões e cards */
+        .action-button { padding: 0.5rem 1rem; border-radius: 0.375rem; font-weight: 600; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; }
+        .btn-primary { background-color: #4f46e5; color: white; } .btn-primary:hover { background-color: #4338ca; }
+        .btn-secondary { background-color: #6b7280; color: white; } .btn-secondary:hover { background-color: #4b5563; }
+        .btn-gemini { background: linear-gradient(to right, #4f46e5, #9333ea); color: white; } .btn-gemini:hover { background: linear-gradient(to right, #4338ca, #7e22ce); }
+        .btn-export-pdf { background-color: #ef4444; color: white; } .btn-export-pdf:hover { background-color: #dc2626; }
+        .btn-export-txt { background-color: #06b6d4; color: white; } .btn-export-txt:hover { background-color: #0891b2; }
+        .action-button:disabled { background-color: #9ca3af; cursor: not-allowed; }
+        .filter-button.active { background-color: #4f46e5; color: white; }
+        .filter-button { background-color: #e5e7eb; color: #374151; }
+        .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1); padding: 1.5rem; }
+        
+        /* Modal Styles */
+        .modal-overlay { position: fixed; inset: 0; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1050; opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s; }
+        .modal-overlay.show { opacity: 1; visibility: visible; }
+        .modal-content { background-color: white; padding: 1.5rem 2rem; border-radius: 0.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); width: 90%; max-width: 800px; transform: scale(0.95); transition: transform 0.3s; }
+        .modal-overlay.show .modal-content { transform: scale(1); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.75rem; margin-bottom: 1rem; }
+        .modal-title { font-size: 1.25rem; font-weight: 600; color: #1f2937; }
+        .modal-close-button { background: none; border: none; font-size: 1.5rem; line-height: 1; cursor: pointer; color: #9ca3af; } .modal-close-button:hover{color: #4b5563;}
+
+        /* Loading Spinner */
+        #loadingOverlay { display: none; position: fixed; inset: 0; background-color: rgba(255, 255, 255, 0.7); z-index: 9999; }
+        #loadingSpinner { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); border: 5px solid #f3f3f3; border-top: 5px solid #4f46e5; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: translate(-50%, -50%) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-gray-200">
+    <div id="loadingOverlay"><div id="loadingSpinner"></div></div>
+
+    <!-- SIDEBAR -->
+    <aside id="sidebar" class="sidebar bg-gray-800 text-white h-screen fixed top-0 left-0 z-40 flex flex-col collapsed">
+        <div class="p-4 flex items-center justify-between h-16 border-b border-gray-700">
+            <h1 class="text-2xl font-bold whitespace-nowrap overflow-hidden"><span class="long-title">CDM - MB</span></h1>
+            <button id="close-sidebar" class="text-gray-400 hover:text-white md:hidden text-3xl leading-none">&times;</button>
+        </div>
+        <nav class="flex-grow p-2 overflow-y-auto">
+            <ul>
+                <li><a href="index.html" class="flex items-center p-3 my-1 rounded-lg hover:bg-gray-700" title="Lançamento Diário"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><span class="ml-4 nav-text">Lançamento Diário</span></a></li>
+                <li><a href="absenteismo.html" class="flex items-center p-3 my-1 rounded-lg hover:bg-gray-700" title="Absenteísmo"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.653-.225-1.26-.623-1.741M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 0c-2.21 0-4 2.24-4 5v2h8v-2c0-2.76-1.79-5-4-5z"></path></svg><span class="ml-4 nav-text">Absenteísmo</span></a></li>
+                <li><a href="dashboard.html" class="flex items-center p-3 my-1 rounded-lg bg-gray-900" title="Dashboard"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg><span class="ml-4 nav-text">Dashboard</span></a></li>
+            </ul>
+        </nav>
+        <div class="p-2 border-t border-gray-700">
+            <a href="#" id="settings-button" class="flex items-center p-3 rounded-lg hover:bg-gray-700" title="Configurações"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.096 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg><span class="ml-4 nav-text">Configurações</span></a>
+        </div>
+    </aside>
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden md:hidden"></div>
+
+    <!-- MAIN CONTENT WRAPPER -->
+    <div class="main-content">
+        <!-- HEADER -->
+        <header class="bg-white shadow-md sticky top-0 z-20 h-16 flex items-center px-6">
+            <button id="menu-button" class="p-2 text-gray-500 rounded-md -ml-2 mr-2">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+            </button>
+            <h1 class="text-xl font-semibold text-gray-800">
+                <span class="hidden sm:inline">Ciclos Diários de Máquinas - MB</span>
+                <span class="sm:hidden">CDM - MB</span>
+            </h1>
+        </header>
+
+        <!-- DASHBOARD CONTENT -->
+        <main class="p-4 sm:p-6 lg:p-8">
+            <h1 class="text-3xl font-bold text-gray-900 mb-6">Análise de Gargalos e Eficiência</h1>
+            <div class="card mb-6">
+                <h2 class="text-lg font-semibold text-gray-800 mb-4">Filtrar Período de Análise</h2>
+                <div class="flex flex-wrap items-center gap-4">
+                    <div id="quick-filters" class="flex flex-wrap gap-2"><button class="action-button filter-button" data-period="today">Hoje</button><button class="action-button filter-button" data-period="week">Esta Semana</button><button class="action-button filter-button" data-period="month">Este Mês</button><button class="action-button filter-button" data-period="semester">Este Semestre</button></div>
+                    <div class="flex items-center gap-2"><input type="date" id="startDate" class="p-2 border rounded-md"><span class="text-gray-600">até</span><input type="date" id="endDate" class="p-2 border rounded-md"></div>
+                    <button id="apply-filter" class="action-button btn-primary">Aplicar Filtro</button>
+                    <button id="analyze-with-ai" class="action-button btn-gemini" disabled>✨ Analisar Relatório Geral</button>
+                </div>
+            </div>
+            <div id="dashboard-grid" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="card lg:col-span-2"><h3 class="text-xl font-semibold text-gray-800 mb-4">Desvio Médio de Ciclo por Máquina</h3><p class="text-sm text-gray-500 mb-4">Valores positivos indicam lentidão. <strong class="text-indigo-600">Clique em uma barra para análise de causa raiz.</strong></p><canvas id="gargalosChart"></canvas></div>
+                <div class="card"><h3 class="text-xl font-semibold text-gray-800 mb-4">Frequência de Registros</h3><canvas id="frequenciaChart" style="max-height: 350px;"></canvas></div>
+                <div class="card"><h3 class="text-xl font-semibold text-gray-800 mb-4">Tendência de Eficiência Diária</h3><p class="text-sm text-gray-500 mb-4">Média de desvio de ciclo de todas as máquinas.</p><canvas id="tendenciaChart"></canvas></div>
+            </div>
+            <div class="card mt-6">
+                 <h2 class="text-lg font-semibold text-gray-800 mb-4">Exportar Relatório do Dashboard</h2>
+                 <div class="flex flex-wrap gap-4"><button id="export-pdf" class="action-button btn-export-pdf" disabled>Exportar para PDF</button><button id="export-txt" class="action-button btn-export-txt" disabled>Exportar para TXT</button></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- MODALS -->
+    <div id="modal-settings" class="modal-overlay"><div class="modal-content max-w-lg"><div class="modal-header"><h2 class="modal-title">Configurações</h2><button class="modal-close-button" data-close-modal-id="modal-settings">&times;</button></div><div><label for="gemini-api-key" class="block text-sm font-medium text-gray-700 mb-1">Sua Chave API Google Gemini</label><input type="password" id="gemini-api-key" class="w-full p-2 border rounded-md mb-2" placeholder="Cole sua chave aqui"><button id="save-api-key" class="action-button btn-primary w-full mb-4">Salvar Chave</button><div class="text-center"><button id="show-tutorial" class="text-indigo-600 hover:underline text-sm">Como Obter Chave API?</button></div></div></div></div>
+    <div id="modal-tutorial" class="modal-overlay"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Como Obter sua Chave API do Google Gemini</h2><button class="modal-close-button" data-close-modal-id="modal-tutorial">&times;</button></div><div class="prose max-w-none text-gray-700"><p>Para utilizar todas as funcionalidades de análise por IA, você precisará de uma Chave API do Google Gemini. O Gemini 1.5 Flash, que é necessária, oferece um nível gratuito generoso.</p><h4>Passo 1: Acesse o Google AI Studio</h4><p>Se você ainda não tem uma conta Google, precisará criar uma. Depois, acesse o Google AI Studio:</p><a href="https://aistudio.google.com/app/apikey" target="_blank" class="action-button btn-primary">Ir para o Google AI Studio &rarr;</a><h4 class="mt-4">Passo 2: Gere sua Chave API</h4><ul><li>Procure pela opção "Get API key" ou "Criar chave API".</li><li>Clique em "Create API key in new project".</li><li>Siga as instruções para nomear seu projeto, se necessário.</li><li>Após a criação, sua chave API será exibida.</li></ul><h4>Passo 3: Copie e Cole sua Chave API</h4><ul><li>Clique no botão para copiar sua chave API.</li><li>Volte para esta página (dentro do modal de Configurações).</li><li>Cole a chave no campo "Sua Chave API Google Gemini".</li><li>Clique em "Salvar".</li></ul><p class="font-semibold mt-4">Importante: Guarde sua chave API em um local seguro e não a compartilhe publicamente.</p></div><div class="mt-6 text-center"><button class="action-button btn-secondary" data-close-modal-id="modal-tutorial">Entendi - Fechar Tutorial</button></div></div></div>
+    <div id="modal-ai" class="modal-overlay"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">✨ Análise Geral e Sugestões da IA</h2><button class="modal-close-button" data-close-modal-id="modal-ai">&times;</button></div><div id="ai-result-content" class="prose max-w-none max-h-[60vh] overflow-y-auto text-gray-700"></div><div id="ai-export-buttons" class="mt-4 pt-4 border-t flex justify-end gap-3 hidden"><button onclick="exportarAnaliseTXT('general')" class="action-button btn-export-txt">Exportar TXT</button><button onclick="exportarAnalisePDF('general')" class="action-button btn-export-pdf">Exportar PDF</button></div></div></div>
+    <div id="modal-rca" class="modal-overlay"><div class="modal-content"><div class="modal-header"><h2 id="rca-modal-title" class="modal-title">✨ Análise de Causa Raiz</h2><button class="modal-close-button" data-close-modal-id="modal-rca">&times;</button></div><div id="rca-result-content" class="prose max-w-none max-h-[60vh] overflow-y-auto text-gray-700"></div><div id="rca-export-buttons" class="mt-4 pt-4 border-t flex justify-end gap-3 hidden"><button onclick="exportarAnaliseTXT('rca')" class="action-button btn-export-txt">Exportar TXT</button><button onclick="exportarAnalisePDF('rca')" class="action-button btn-export-pdf">Exportar PDF</button></div></div></div>
+
+<script>
+// --- SUPABASE CLIENT ---
+const SUPABASE_URL = 'https://ranhhacbgyfpzrjdynnd.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJhbmhoYWNiZ3lmcHpyamR5bm5kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM5MDU4OTEsImV4cCI6MjA1OTQ4MTg5MX0.Ey-X4Tz8krKHSICnYdHdBaI3q5WcRgUVwA8jOhfMr7Y';
+const { createClient } = supabase;
+const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// --- GLOBAL VARIABLES & DOM ELEMENTS ---
+let gargalosChartInstance, frequenciaChartInstance, tendenciaChartInstance;
+let processedDataCache = null;
+let allRecordsCache = [];
+const loadingOverlay = document.getElementById('loadingOverlay');
+const startDateInput = document.getElementById('startDate');
+const endDateInput = document.getElementById('endDate');
+const applyFilterBtn = document.getElementById('apply-filter');
+const quickFiltersContainer = document.getElementById('quick-filters');
+const analyzeWithAiBtn = document.getElementById('analyze-with-ai');
+const exportPdfBtn = document.getElementById('export-pdf');
+const exportTxtBtn = document.getElementById('export-txt');
+
+// --- UTILITY FUNCTIONS ---
+const showLoading = (isLoading) => {
+    loadingOverlay.style.display = isLoading ? 'flex' : 'none';
+};
+const formatDate = (date) => date.toISOString().split('T')[0];
+const setDateInputs = (start, end) => {
+    startDateInput.value = formatDate(start);
+    endDateInput.value = formatDate(end);
+};
+
+// --- SIDEBAR & NAVIGATION ---
+const sidebar = document.getElementById('sidebar');
+const menuButton = document.getElementById('menu-button');
+const closeSidebarButton = document.getElementById('close-sidebar');
+const sidebarOverlay = document.getElementById('sidebar-overlay');
+
+menuButton.addEventListener('click', () => {
+    if (window.innerWidth < 768) {
+        sidebar.classList.remove('collapsed'); // Garante que não esteja colapsada no modo mobile
+        sidebar.classList.add('show');
+        sidebarOverlay.classList.remove('hidden');
+    } else {
+        sidebar.classList.toggle('collapsed');
+        document.querySelector('.main-content').style.marginLeft = sidebar.classList.contains('collapsed') ? 'var(--sidebar-width-collapsed)' : 'var(--sidebar-width)';
+    }
+});
+closeSidebarButton.addEventListener('click', () => {
+    sidebar.classList.remove('show');
+    sidebarOverlay.classList.add('hidden');
+});
+sidebarOverlay.addEventListener('click', () => {
+    sidebar.classList.remove('show');
+    sidebarOverlay.classList.add('hidden');
+});
+
+// --- MODAL HANDLING ---
+function setupModal(modalId, openTriggerId) {
+    const modal = document.getElementById(modalId);
+    const openBtn = document.getElementById(openTriggerId);
+    if (modal && openBtn) {
+        openBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            modal.classList.add('show');
+        });
+    }
+}
+document.body.addEventListener('click', (e) => {
+    if (e.target.dataset.closeModalId) {
+        document.getElementById(e.target.dataset.closeModalId).classList.remove('show');
+    }
+});
+setupModal('modal-settings', 'settings-button');
+setupModal('modal-tutorial', 'show-tutorial');
+setupModal('modal-ai', 'analyze-with-ai');
+
+// --- API KEY MANAGEMENT ---
+const apiKeyInput = document.getElementById('gemini-api-key');
+const saveApiKeyBtn = document.getElementById('save-api-key');
+apiKeyInput.value = localStorage.getItem('geminiApiKey') || '';
+saveApiKeyBtn.addEventListener('click', () => {
+    const key = apiKeyInput.value.trim();
+    if (key) {
+        localStorage.setItem('geminiApiKey', key);
+        alert('Chave API salva com sucesso!');
+        document.getElementById('modal-settings').classList.remove('show');
+    } else {
+        alert('Por favor, insira uma chave API válida.');
+    }
+});
+
+// --- CHART RENDERING ---
+function renderCharts(processedData) {
+    if (!processedData) return;
+    processedDataCache = processedData;
+    destroyCharts();
+    renderGargalosChart(processedData.byMachine);
+    renderFrequenciaChart(processedData.byMachine);
+    renderTendenciaChart(processedData.byDay);
+    
+    analyzeWithAiBtn.disabled = false;
+    exportPdfBtn.disabled = false;
+    exportTxtBtn.disabled = false;
+}
+
+function destroyCharts() {
+    if (gargalosChartInstance) gargalosChartInstance.destroy();
+    if (frequenciaChartInstance) frequenciaChartInstance.destroy();
+    if (tendenciaChartInstance) tendenciaChartInstance.destroy();
+}
+
+function renderGargalosChart(data) {
+    const ctx = document.getElementById('gargalosChart').getContext('2d');
+    const labels = Object.keys(data);
+    const chartData = labels.map(label => data[label].avgDeviation);
+    const backgroundColors = chartData.map(value => value > 0 ? 'rgba(239, 68, 68, 0.6)' : 'rgba(34, 197, 94, 0.6)');
+    const borderColors = chartData.map(value => value > 0 ? 'rgba(239, 68, 68, 1)' : 'rgba(34, 197, 94, 1)');
+    gargalosChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: 'Desvio Médio de Ciclo (s)',
+                data: chartData,
+                backgroundColor: backgroundColors,
+                borderColor: borderColors,
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, title: { display: true, text: 'Segundos (s)' } } },
+            onClick: (e, el) => { if (el.length > 0) analisarCausaRaiz(labels[el[0].index]); },
+            onHover: (e, el) => { e.native.target.style.cursor = el[0] ? 'pointer' : 'default'; }
+        }
+    });
+}
+
+function renderFrequenciaChart(data) {
+    const ctx = document.getElementById('frequenciaChart').getContext('2d');
+    const labels = Object.keys(data);
+    const chartData = labels.map(label => data[label].count);
+    frequenciaChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels,
+            datasets: [{
+                label: 'Nº de Registros',
+                data: chartData,
+                backgroundColor: ['rgba(79, 70, 229, 0.7)', 'rgba(219, 39, 119, 0.7)', 'rgba(245, 158, 11, 0.7)', 'rgba(16, 185, 129, 0.7)', 'rgba(99, 102, 241, 0.7)', 'rgba(234, 88, 12, 0.7)'],
+                hoverOffset: 4
+            }]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'top' } } }
+    });
+}
+
+function renderTendenciaChart(data) {
+    const ctx = document.getElementById('tendenciaChart').getContext('2d');
+    tendenciaChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            datasets: [{
+                label: 'Desvio Médio Diário',
+                data: data,
+                fill: false,
+                borderColor: 'rgb(75, 192, 192)',
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                x: { type: 'time', time: { unit: 'day', tooltipFormat: 'dd/MM/yyyy' }, title: { display: true, text: 'Data' } },
+                y: { title: { display: true, text: 'Desvio Médio (s)' } }
+            }
+        }
+    });
+}
+
+// --- DATA FETCHING & PROCESSING ---
+async function fetchAndProcessData(startDate, endDate) {
+    showLoading(true);
+    destroyCharts();
+    try {
+        const { data, error } = await supabaseClient.from('status_maquinas').select('*').gte('data', startDate).lte('data', endDate).order('data', { ascending: true });
+        if (error) throw error;
+        allRecordsCache = data;
+        if (data.length === 0) {
+            alert('Nenhum dado encontrado para o período selecionado.');
+            return null;
+        }
+        const dataByMachine = {};
+        const dataByDay = {};
+        data.forEach(item => {
+            const machine = item.nome_maquina;
+            const deviation = parseFloat(item.ciclo_atual) - parseFloat(item.ciclo_padrao);
+            if (!dataByMachine[machine]) {
+                dataByMachine[machine] = { totalDeviation: 0, count: 0, observations: [] };
+            }
+            dataByMachine[machine].totalDeviation += deviation;
+            dataByMachine[machine].count++;
+            if (item.observacoes) dataByMachine[machine].observations.push(item.observacoes);
+            const date = item.data;
+            if (!dataByDay[date]) {
+                dataByDay[date] = { totalDeviation: 0, count: 0 };
+            }
+            dataByDay[date].totalDeviation += deviation;
+            dataByDay[date].count++;
+        });
+        for (const machine in dataByMachine) {
+            dataByMachine[machine].avgDeviation = dataByMachine[machine].totalDeviation / dataByMachine[machine].count;
+        }
+        const trendData = Object.keys(dataByDay).sort((a, b) => new Date(a) - new Date(b)).map(date => ({
+            x: date,
+            y: dataByDay[date].totalDeviation / dataByDay[date].count
+        }));
+        processedDataCache = { byMachine: dataByMachine, byDay: trendData };
+        renderCharts(processedDataCache);
+    } catch (err) {
+        console.error("Erro ao buscar dados:", err);
+        alert("Falha ao carregar dados do dashboard.");
+    } finally {
+        showLoading(false);
+    }
+}
+
+// --- EVENT LISTENERS FOR FILTERS ---
+document.addEventListener('DOMContentLoaded', () => {
+    handleQuickFilter({ target: quickFiltersContainer.querySelector('[data-period="week"]') });
+    exportPdfBtn.addEventListener('click', exportarTabelaPDF);
+    exportTxtBtn.addEventListener('click', exportarTabelaTXT);
+});
+quickFiltersContainer.addEventListener('click', (e) => {
+    if (e.target.matches('button[data-period]')) handleQuickFilter(e);
+});
+function handleQuickFilter(e) {
+    const period = e.target.dataset.period;
+    const today = new Date();
+    let start = new Date(),
+        end = new Date();
+    switch (period) {
+        case 'today':
+            break;
+        case 'week':
+            const day = today.getDay();
+            start.setDate(today.getDate() - day + (day === 0 ? -6 : 1));
+            break;
+        case 'month':
+            start = new Date(today.getFullYear(), today.getMonth(), 1);
+            break;
+        case 'semester':
+            start = new Date(today.getFullYear(), today.getMonth() < 6 ? 0 : 6, 1);
+            break;
+    }
+    setDateInputs(start, end);
+    applyFilterBtn.click();
+    quickFiltersContainer.querySelectorAll('button').forEach(btn => btn.classList.remove('active'));
+    e.target.classList.add('active');
+}
+applyFilterBtn.addEventListener('click', () => {
+    if (startDateInput.value && endDateInput.value) {
+        fetchAndProcessData(startDateInput.value, endDateInput.value);
+    } else {
+        alert("Selecione as datas de início e fim.");
+    }
+});
+
+// --- AI ANALYSIS ---
+async function callGeminiApi(prompt, contentElement, exportButtonsElement) {
+    const apiKey = localStorage.getItem('geminiApiKey');
+    if (!apiKey) {
+        alert('Chave API do Gemini não encontrada. Por favor, salve sua chave nas Configurações.');
+        contentElement.innerHTML = '<p class="text-red-500">Chave API não configurada.</p>';
+        return;
+    }
+    showLoading(true);
+    contentElement.innerHTML = '<p>Analisando dados com a IA... Por favor, aguarde.</p>';
+    exportButtonsElement.classList.add('hidden');
+    try {
+        const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+            const errorBody = await response.json();
+            throw new Error(`HTTP error! status: ${response.status} - ${errorBody.error.message}`);
+        }
+        const result = await response.json();
+        if (result.candidates && result.candidates.length > 0) {
+            const text = result.candidates[0].content.parts[0].text;
+            let htmlResult = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/^- (.*$)/gm, '<li class="ml-4 list-disc">$1</li>').replace(/\n/g, '<br>');
+            contentElement.innerHTML = htmlResult;
+            exportButtonsElement.classList.remove('hidden');
+        } else {
+            throw new Error("Resposta da API inválida ou sem conteúdo.");
+        }
+    } catch (error) {
+        console.error('Erro na chamada da API Gemini:', error);
+        contentElement.innerHTML = `<p class="text-red-500">Ocorreu um erro ao buscar a análise da IA. Verifique se sua chave API é válida e se o console contém mais detalhes. (Erro: ${error.message})</p>`;
+    } finally {
+        showLoading(false);
+    }
+}
+analyzeWithAiBtn.addEventListener('click', () => {
+    if (!processedDataCache) return;
+    const { byMachine, byDay } = processedDataCache;
+    let dataSummary = Object.entries(byMachine).map(([m, d]) => `- ${m}: Desvio Médio ${d.avgDeviation.toFixed(2)}s`).join('\n');
+    let trendSummary = byDay.map(d => `- ${d.x}: Desvio ${d.y.toFixed(2)}s`).join('\n');
+    const prompt = `Como analista de produção sênior, analise o desempenho das máquinas de ${startDateInput.value} a ${endDateInput.value}. Dados: ${dataSummary}. Tendência: ${trendSummary}. Forneça em português: 1. **Resumo Executivo**. 2. **Principais Gargalos** (piores 2-3 máquinas). 3. **Análise de Tendências**. 4. **Plano de Ação Sugerido**. Formate com títulos e listas.`;
+    document.getElementById('modal-ai').classList.add('show');
+    callGeminiApi(prompt, document.getElementById('ai-result-content'), document.getElementById('ai-export-buttons'));
+});
+async function analisarCausaRaiz(machineName) {
+    document.getElementById('modal-rca').classList.add('show');
+    const rcaContent = document.getElementById('rca-result-content');
+    const rcaExport = document.getElementById('rca-export-buttons');
+    document.getElementById('rca-modal-title').innerText = `✨ Análise de Causa Raiz: ${machineName}`;
+    const machineRecords = allRecordsCache.filter(r => r.nome_maquina === machineName).map(r => `- Data: ${r.data}, Ciclo Padrão: ${r.ciclo_padrao}s, Atual: ${r.ciclo_atual}s, Obs: ${r.observacoes || 'N/A'}`).join('\n');
+    const prompt = `Como especialista em injetoras, faça uma Análise de Causa Raiz para a máquina **${machineName}** (período de ${startDateInput.value} a ${endDateInput.value}). Registros: ${machineRecords}. Forneça em português: 1. **Diagnóstico Principal**. 2. **Evidências** dos registros. 3. **Ações Corretivas Imediatas**. 4. **Ações Preventivas**. Seja técnico e direto, use títulos e listas.`;
+    callGeminiApi(prompt, rcaContent, rcaExport);
+}
+
+// --- EXPORT FUNCTIONS ---
+function exportarTabelaPDF() {
+    if (!processedDataCache) {
+        alert("Não há dados para exportar.");
+        return;
+    }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p', 'pt', 'a4');
+    const addChartToPdf = (chartInstance, y) => {
+        const imgData = chartInstance.toBase64Image();
+        doc.addImage(imgData, 'PNG', 40, y, 515, 280);
+        return y + 300;
+    };
+    doc.setFontSize(18);
+    doc.text(`Relatório de Desempenho de Máquinas`, 40, 40);
+    doc.setFontSize(12);
+    doc.text(`Período: ${startDateInput.value} a ${endDateInput.value}`, 40, 60);
+    let currentY = 80;
+    currentY = addChartToPdf(gargalosChartInstance, currentY);
+    doc.addPage();
+    currentY = 40;
+    currentY = addChartToPdf(frequenciaChartInstance, currentY);
+    currentY = addChartToPdf(tendenciaChartInstance, currentY);
+    doc.addPage();
+    doc.setFontSize(14);
+    doc.text("Dados Detalhados por Máquina", 40, 40);
+    const head = [
+        ['Máquina', 'Desvio Médio (s)', 'Nº de Registros']
+    ];
+    const body = Object.entries(processedDataCache.byMachine).map(([machine, data]) => [machine, data.avgDeviation.toFixed(2), data.count]);
+    doc.autoTable({
+        head: head,
+        body: body,
+        startY: 50,
+        theme: 'grid',
+        headStyles: { fillColor: [79, 70, 229] }
+    });
+    doc.save(`dashboard-desempenho-${formatDate(new Date())}.pdf`);
+}
+
+function exportarTabelaTXT() {
+    if (!processedDataCache) {
+        alert("Não há dados para exportar.");
+        return;
+    }
+    let content = `RELATÓRIO DE DESEMPENHO - ${startDateInput.value} a ${endDateInput.value}\n\n`;
+    content += "--- DADOS POR MÁQUINA ---\n";
+    for (const machine in processedDataCache.byMachine) {
+        const d = processedDataCache.byMachine[machine];
+        content += `Máquina: ${machine}\n`;
+        content += `  - Desvio Médio de Ciclo: ${d.avgDeviation.toFixed(2)} segundos\n`;
+        content += `  - Número de Registros: ${d.count}\n\n`;
+    }
+    content += "\n--- TENDÊNCIA DIÁRIA DE EFICIÊNCIA ---\n";
+    processedDataCache.byDay.forEach(d => {
+        content += `Data: ${d.x}, Desvio Médio: ${d.y.toFixed(2)} segundos\n`;
+    });
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `dashboard-desempenho-${formatDate(new Date())}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+function exportarAnalisePDF(type) {
+    const isRCA = type === 'rca';
+    const contentElement = isRCA ? document.getElementById('rca-result-content') : document.getElementById('ai-result-content');
+    let activeElements = gargalosChartInstance.getActiveElements();
+    let machineName = "Geral";
+    if (isRCA && activeElements.length > 0) {
+       machineName = gargalosChartInstance.data.labels[activeElements[0].index];
+    }
+    let title = isRCA ? `Análise de Causa Raiz: ${machineName}` : "Relatório de Análise Geral de IA";
+
+    if (!contentElement.innerHTML || contentElement.innerText.trim().startsWith('Analisando dados')) {
+        alert("Não há análise para exportar ou a análise está em andamento.");
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 15;
+    let cursorY = margin;
+
+    doc.setFontSize(16);
+    doc.setFont(undefined, 'bold');
+    doc.text(title, margin, cursorY, { maxWidth: pageWidth - margin * 2 });
+    cursorY += 10;
+    
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'normal');
+    doc.text(`Período da Análise: ${startDateInput.value} a ${endDateInput.value}`, margin, cursorY);
+    cursorY += 5;
+    
+    doc.setLineWidth(0.2);
+    doc.line(margin, cursorY, pageWidth - margin, cursorY);
+    cursorY += 10;
+
+    const htmlContent = contentElement.innerHTML;
+    const rawLines = htmlContent.replace(/<br\s*\/?>/gi, '\n').split('\n');
+    doc.setFontSize(10);
+
+    for (const line of rawLines) {
+        let isBold = line.includes('<strong>');
+        let isListItem = line.includes('<li>');
+        let textLine = line.replace(/<[^>]+>/g, '').trim(); 
+        if (isListItem) {
+            textLine = `  •  ${textLine}`;
+        }
+        
+        doc.setFont(undefined, isBold ? 'bold' : 'normal');
+        const splitText = doc.splitTextToSize(textLine, pageWidth - (margin * 2));
+
+        for (const subLine of splitText) {
+            if (cursorY + 5 > pageHeight - margin) {
+                doc.addPage();
+                cursorY = margin;
+            }
+            doc.text(subLine, isListItem ? margin + 3 : margin, cursorY);
+            cursorY += 5;
+        }
+    }
+    doc.save(`analise-${type}-${formatDate(new Date())}.pdf`);
+}
+
+function exportarAnaliseTXT(type) {
+    const isRCA = type === 'rca';
+    const contentElement = isRCA ? document.getElementById('rca-result-content') : document.getElementById('ai-result-content');
+    let activeElements = gargalosChartInstance.getActiveElements();
+    let machineName = "Geral";
+    if (isRCA && activeElements.length > 0) {
+       machineName = gargalosChartInstance.data.labels[activeElements[0].index];
+    }
+    const title = isRCA ? `Análise de Causa Raiz: ${machineName}` : 'Relatório de Análise Geral de IA';
+    const contentText = contentElement.innerText;
+    if (!contentText) {
+        alert("Não há análise para exportar.");
+        return;
+    }
+    let fileContent = `${title.toUpperCase()}\nPeríodo: ${startDateInput.value} a ${endDateInput.value}\n\n=========================================\n\n${contentText}`;
+    const blob = new Blob([fileContent], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `analise-${type}-${formatDate(new Date())}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+</script>
+
+</body>
+</html>
