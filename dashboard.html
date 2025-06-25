@@ -433,7 +433,7 @@ analyzeWithAiBtn.addEventListener('click', () => {
     const { byMachine, byDay } = processedDataCache;
     let dataSummary = Object.entries(byMachine).map(([m, d]) => `- ${m}: Desvio Médio ${d.avgDeviation.toFixed(2)}s`).join('\n');
     let trendSummary = byDay.map(d => `- ${d.x}: Desvio ${d.y.toFixed(2)}s`).join('\n');
-    const prompt = `Como analista de produção sênior, analise o desempenho das máquinas de ${startDateInput.value} a ${endDateInput.value}. Dados: ${dataSummary}. Tendência: ${trendSummary}. Forneça em português: 1. **Resumo Executivo**. 2. **Principais Gargalos** (piores 2-3 máquinas). 3. **Análise de Tendências**. 4. **Plano de Ação Sugerido**. Formate com títulos e listas.`;
+    const prompt = `Como analista de produção sênior, analise o desempenho das máquinas de ${startDateInput.value} a ${endDateInput.value}. Dados: ${dataSummary}. Tendência: ${trendSummary}. Forneça em português: 1. **Resumo Executivo**. 2. **Principais Gargalos** (piores 4-10 máquinas). 3. **Análise de Tendências**. 4. **Plano de Ação Sugerido**. Formate com títulos e listas.`;
     document.getElementById('modal-ai').classList.add('show');
     callGeminiApi(prompt, document.getElementById('ai-result-content'), document.getElementById('ai-export-buttons'));
 });
