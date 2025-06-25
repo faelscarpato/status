@@ -633,7 +633,7 @@ async function sugerirObservacao() {
         return;
     }
 
-    const prompt = `Como um especialista em processos de injeção plástica, o ciclo da máquina ${maquina} com o molde ${molde} está ${Math.abs(diferenca).toFixed(2)}s ${tipoVariacao} (Padrão: ${cicloPadrao}s, Atual: ${cicloAtual}s). Liste, em formato de checklist com hífens, 3 a 4 possíveis causas técnicas que um operador deve verificar. Seja conciso e direto.`;
+    const prompt = `Você é um especialista em processos de injeção plástica, o ciclo da máquina ${maquina} com o molde ${molde} está ${Math.abs(diferenca).toFixed(2)}s ${tipoVariacao} (Padrão: ${cicloPadrao}s, Atual: ${cicloAtual}s). Liste, em formato de checklist com hífens, 3 a 4 possíveis causas técnicas que um processista ou operador deve verificar para ajustar. Seja conciso e direto.`;
 
     const originalIcon = sugestaoIaBtn.innerHTML;
     sugestaoIaBtn.innerHTML = `<svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
